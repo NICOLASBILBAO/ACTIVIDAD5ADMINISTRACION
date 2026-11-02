@@ -1,0 +1,1755 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Simulador SG-SST · Logística &amp; Transporte del Caribe S.A.S.</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link href="https://fonts.googleapis.com/css2?family=Oswald:wght@500;600;700&family=Inter:wght@400;500;600;700&family=JetBrains+Mono:wght@500;700&display=swap" rel="stylesheet">
+<script src="https://cdnjs.cloudflare.com/ajax/libs/three.js/r128/three.min.js"></script>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/jspdf/2.5.1/jspdf.umd.min.js"></script>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/jspdf-autotable/3.8.2/jspdf.plugin.autotable.min.js"></script>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/xlsx/0.18.5/xlsx.full.min.js"></script>
+<style>
+:root{
+  --bg:#14171a;
+  --panel:#1c2127;
+  --panel-2:#232a32;
+  --panel-3:#2a323c;
+  --border:#333c46;
+  --yellow:#f4b400;
+  --yellow-dim:#8a6b12;
+  --orange:#e2601b;
+  --blue:#5c8ac7;
+  --red:#c1272d;
+  --green:#4e9f3d;
+  --text:#eceae4;
+  --text-dim:#9aa3ac;
+  --text-faint:#69727b;
+  --stripe: repeating-linear-gradient(45deg, var(--yellow) 0 14px, #14171a 14px 28px);
+}
+*{box-sizing:border-box;}
+html,body{margin:0;padding:0;}
+body{
+  background:var(--bg);
+  color:var(--text);
+  font-family:'Inter',sans-serif;
+  min-height:100vh;
+}
+h1,h2,h3,.display{
+  font-family:'Oswald',sans-serif;
+  text-transform:uppercase;
+  letter-spacing:0.03em;
+  font-weight:600;
+  margin:0;
+}
+.mono{font-family:'JetBrains Mono',monospace;}
+::selection{background:var(--yellow);color:#14171a;}
+button{font-family:'Inter',sans-serif;cursor:pointer;}
+textarea,input,select{
+  font-family:'Inter',sans-serif;
+  background:var(--panel-2);
+  color:var(--text);
+  border:1px solid var(--border);
+  border-radius:4px;
+  padding:10px 12px;
+  width:100%;
+  font-size:14px;
+}
+textarea{resize:vertical;min-height:80px;line-height:1.5;}
+input:focus,textarea:focus,select:focus,button:focus-visible{
+  outline:2px solid var(--yellow);
+  outline-offset:1px;
+}
+label{
+  display:block;
+  font-size:11px;
+  text-transform:uppercase;
+  letter-spacing:.08em;
+  color:var(--text-dim);
+  margin-bottom:6px;
+  font-weight:600;
+}
+.field{margin-bottom:16px;}
+
+/* layout */
+.app{display:grid;grid-template-columns:250px 1fr;min-height:100vh;}
+@media (max-width:860px){
+  .app{grid-template-columns:1fr;}
+  .panel-nav{position:sticky;top:0;z-index:50;flex-direction:row;overflow-x:auto;height:auto;padding:10px;}
+  .panel-nav .navlist{flex-direction:row;}
+  .panel-nav .mini3d-wrap{display:none;}
+}
+
+.panel-nav{
+  background:var(--panel);
+  border-right:3px solid var(--border);
+  display:flex;
+  flex-direction:column;
+  padding:18px 14px;
+  gap:16px;
+}
+.brand{
+  display:flex;align-items:center;gap:10px;
+  padding-bottom:14px;border-bottom:2px solid var(--border);
+}
+.brand .dot{width:10px;height:10px;border-radius:50%;background:var(--yellow);box-shadow:0 0 8px var(--yellow);}
+.brand span{font-size:11px;letter-spacing:.12em;color:var(--text-dim);font-weight:600;}
+
+.navlist{display:flex;flex-direction:column;gap:4px;flex:1;}
+.navbtn{
+  display:flex;align-items:center;gap:10px;
+  background:transparent;border:1px solid transparent;
+  color:var(--text-dim);
+  padding:10px 10px;border-radius:6px;
+  text-align:left;font-size:13px;font-weight:600;
+  transition:all .15s ease;
+}
+.navbtn .num{
+  font-family:'JetBrains Mono',monospace;
+  font-size:11px;color:var(--text-faint);
+  width:20px;flex-shrink:0;
+}
+.navbtn:hover{background:var(--panel-2);color:var(--text);}
+.navbtn.active{background:var(--panel-3);color:var(--yellow);border-color:var(--yellow-dim);}
+.navbtn.active .num{color:var(--yellow);}
+.navbtn .led{
+  width:7px;height:7px;border-radius:50%;background:var(--text-faint);margin-left:auto;flex-shrink:0;
+}
+.navbtn.done .led{background:var(--green);box-shadow:0 0 6px var(--green);}
+
+.mini3d-wrap{
+  border-top:2px solid var(--border);
+  padding-top:14px;
+  display:flex;flex-direction:column;align-items:center;gap:8px;
+}
+#mini3d{width:100%;height:110px;border-radius:6px;background:var(--panel-2);}
+.mini3d-label{font-size:10px;color:var(--text-faint);letter-spacing:.1em;text-transform:uppercase;text-align:center;}
+
+.audio-toggle{
+  display:flex;align-items:center;justify-content:space-between;gap:8px;
+  background:var(--panel-2);border:1px solid var(--border);border-radius:6px;
+  padding:8px 10px;font-size:12px;color:var(--text-dim);
+}
+.switch{
+  width:34px;height:18px;border-radius:10px;background:var(--panel-3);position:relative;border:1px solid var(--border);
+}
+.switch::after{
+  content:'';position:absolute;top:1px;left:1px;width:14px;height:14px;border-radius:50%;
+  background:var(--text-faint);transition:all .15s ease;
+}
+.switch.on{background:var(--yellow-dim);}
+.switch.on::after{left:17px;background:var(--yellow);}
+
+.progress-mini{font-size:11px;color:var(--text-dim);}
+.progress-track{height:6px;border-radius:3px;background:var(--panel-2);overflow:hidden;margin-top:6px;border:1px solid var(--border);}
+.progress-fill{height:100%;background:linear-gradient(90deg,var(--orange),var(--yellow));width:0%;transition:width .3s ease;}
+
+/* stage */
+.stage{padding:0;overflow-x:hidden;}
+.topbar{
+  padding:22px 34px 16px;
+  border-bottom:4px solid transparent;
+  border-image: var(--stripe) 30;
+  background:var(--panel);
+}
+.topbar h1{font-size:22px;color:var(--text);}
+.topbar .sub{font-size:12.5px;color:var(--text-dim);margin-top:4px;}
+
+.view{display:none;padding:30px 34px 70px;max-width:980px;}
+.view.active{display:block;animation:fadein .35s ease;}
+@keyframes fadein{from{opacity:0;transform:translateY(6px);}to{opacity:1;transform:translateY(0);}}
+
+.section-eyebrow{
+  font-size:11px;letter-spacing:.15em;color:var(--orange);font-weight:700;
+  text-transform:uppercase;margin-bottom:6px;
+}
+.section-title{font-size:26px;margin-bottom:10px;}
+.section-lede{color:var(--text-dim);font-size:14.5px;line-height:1.6;max-width:70ch;margin-bottom:18px;}
+
+.card{
+  background:var(--panel);border:1px solid var(--border);border-radius:8px;
+  padding:20px 22px;margin-bottom:18px;
+}
+.card h3{font-size:15px;color:var(--yellow);margin-bottom:12px;}
+
+.guide-box{
+  background:var(--panel-2);border-left:3px solid var(--yellow);border-radius:0 6px 6px 0;
+  padding:14px 16px;margin-bottom:16px;display:flex;gap:14px;align-items:flex-start;
+}
+.guide-box p{margin:0;font-size:13.5px;line-height:1.6;color:var(--text);}
+.speak-btn{
+  flex-shrink:0;background:var(--panel-3);border:1px solid var(--border);color:var(--yellow);
+  border-radius:20px;padding:7px 13px;font-size:12px;font-weight:600;white-space:nowrap;
+}
+.speak-btn:hover{background:var(--yellow-dim);color:#14171a;}
+
+.norm-tag{
+  display:inline-block;background:var(--panel-3);border:1px solid var(--border);
+  color:var(--blue);font-size:11px;font-family:'JetBrains Mono',monospace;
+  padding:3px 8px;border-radius:4px;margin:2px 4px 2px 0;
+}
+
+.grid2{display:grid;grid-template-columns:1fr 1fr;gap:16px;}
+.grid3{display:grid;grid-template-columns:1fr 1fr 1fr;gap:16px;}
+@media (max-width:720px){.grid2,.grid3{grid-template-columns:1fr;}}
+
+.stat-row{display:flex;gap:14px;flex-wrap:wrap;margin-bottom:6px;}
+.stat{
+  flex:1;min-width:130px;background:var(--panel-2);border:1px solid var(--border);
+  border-radius:6px;padding:12px 14px;
+}
+.stat .k{font-size:10.5px;color:var(--text-faint);text-transform:uppercase;letter-spacing:.08em;}
+.stat .v{font-family:'JetBrains Mono',monospace;font-size:22px;color:var(--yellow);margin-top:4px;}
+.stat .v.red{color:var(--red);}
+.stat .v.green{color:var(--green);}
+
+/* hero 3d */
+.hero{
+  position:relative;border-radius:10px;overflow:hidden;border:1px solid var(--border);
+  background:linear-gradient(180deg,#1b2027,#0f1215);margin-bottom:22px;
+}
+#hero3d{width:100%;height:300px;display:block;}
+.hero-caption{
+  position:absolute;bottom:0;left:0;right:0;padding:14px 18px;
+  background:linear-gradient(0deg,rgba(0,0,0,.65),transparent);
+  font-size:12px;color:var(--text-dim);
+}
+.start-btn{
+  background:var(--yellow);color:#14171a;border:none;font-weight:700;
+  padding:13px 26px;border-radius:6px;font-size:14px;letter-spacing:.03em;
+  text-transform:uppercase;font-family:'Oswald',sans-serif;
+}
+.start-btn:hover{background:#ffcc33;}
+
+/* ===== Portada institucional + modal de nombre ===== */
+.cover-info{background:var(--panel);border:1px solid var(--border);border-left:4px solid var(--yellow);border-radius:8px;padding:18px 22px;margin:0 0 22px;}
+.cover-info .uni{font-family:'Oswald',sans-serif;text-transform:uppercase;letter-spacing:.06em;font-size:20px;color:var(--yellow);margin-bottom:12px;}
+.cover-info dl{display:grid;grid-template-columns:110px 1fr;gap:6px 14px;margin:0;font-size:14px;}
+.cover-info dt{font-size:11px;color:var(--text-faint);text-transform:uppercase;letter-spacing:.08em;padding-top:3px;}
+.cover-info dd{margin:0;color:var(--text);font-weight:600;}
+.welcome-banner{display:none;background:rgba(244,180,0,.1);border:1px solid var(--yellow);border-radius:8px;padding:12px 18px;margin-bottom:18px;font-size:14px;color:var(--text);}
+.welcome-banner b{color:var(--yellow);}
+.name-modal{position:fixed;inset:0;background:rgba(0,0,0,.72);display:none;align-items:center;justify-content:center;z-index:9999;padding:20px;}
+.name-modal.open{display:flex;}
+.name-box{background:var(--panel);border:1px solid var(--border);border-top:5px solid var(--yellow);border-radius:10px;padding:28px;max-width:460px;width:100%;}
+.name-box h3{font-family:'Oswald',sans-serif;text-transform:uppercase;letter-spacing:.04em;color:var(--yellow);margin:0 0 8px;font-size:20px;}
+.name-box p{color:var(--text-dim);font-size:13.5px;margin:0 0 14px;line-height:1.5;}
+.name-box input{width:100%;padding:12px 14px;border-radius:6px;border:1px solid var(--border);background:var(--panel-2);color:var(--text);font-size:15px;box-sizing:border-box;}
+.name-box input:focus{outline:2px solid var(--yellow);}
+.name-err{color:#ff6b6b;font-size:12.5px;min-height:18px;margin:6px 0 10px;}
+.name-actions{display:flex;gap:10px;justify-content:flex-end;}
+
+.ghost-btn{
+  background:transparent;border:1px solid var(--border);color:var(--text-dim);
+  padding:10px 18px;border-radius:6px;font-size:13px;font-weight:600;
+}
+.ghost-btn:hover{border-color:var(--yellow);color:var(--yellow);}
+
+/* logbook table */
+.logbook-wrap{max-height:270px;overflow:auto;border:1px solid var(--border);border-radius:6px;}
+table{width:100%;border-collapse:collapse;font-size:12px;}
+thead th{
+  position:sticky;top:0;background:var(--panel-3);color:var(--yellow);
+  text-align:left;padding:8px 10px;font-size:10.5px;text-transform:uppercase;letter-spacing:.05em;
+  border-bottom:1px solid var(--border);
+}
+tbody td{padding:7px 10px;border-bottom:1px solid var(--border);color:var(--text-dim);}
+tbody tr:hover{background:var(--panel-2);}
+.tag-cause{
+  font-size:10px;padding:2px 6px;border-radius:3px;background:var(--panel-3);color:var(--orange);
+}
+
+.led-panel{
+  background:#0c0f11;border:1px solid var(--border);border-radius:8px;padding:18px;
+  display:grid;grid-template-columns:repeat(auto-fit,minmax(150px,1fr));gap:14px;
+}
+.led{text-align:center;}
+.led .lbl{font-size:10px;color:var(--text-faint);text-transform:uppercase;letter-spacing:.1em;}
+.led .num{font-family:'JetBrains Mono',monospace;font-size:30px;color:var(--yellow);text-shadow:0 0 12px rgba(244,180,0,.5);margin-top:4px;}
+
+.formula-box{
+  background:var(--panel-2);border:1px dashed var(--border);border-radius:6px;
+  padding:12px 14px;font-family:'JetBrains Mono',monospace;font-size:12.5px;color:var(--text-dim);
+  line-height:1.9;margin-top:10px;
+}
+.formula-box .res{color:var(--yellow);font-weight:700;}
+
+.barchart{display:flex;flex-direction:column;gap:10px;margin-top:6px;}
+.bar-row{display:flex;align-items:center;gap:10px;}
+.bar-row .label{width:170px;font-size:12px;color:var(--text-dim);flex-shrink:0;}
+.bar-track{flex:1;background:var(--panel-2);border-radius:4px;height:16px;overflow:hidden;border:1px solid var(--border);}
+.bar-fill{height:100%;background:linear-gradient(90deg,var(--orange),var(--yellow));border-radius:4px;}
+.bar-row .pct{width:48px;text-align:right;font-family:'JetBrains Mono',monospace;font-size:12px;color:var(--yellow);}
+
+/* org chart */
+.orgchart{display:flex;flex-direction:column;align-items:center;gap:0;margin:10px 0 20px;}
+.org-node{
+  background:var(--panel-2);border:1px solid var(--border);border-radius:6px;
+  padding:10px 16px;text-align:center;font-size:12.5px;font-weight:600;color:var(--text);
+  position:relative;
+}
+.org-node.top{border-color:var(--yellow);color:var(--yellow);}
+.org-line{width:2px;height:22px;background:var(--border);}
+.org-row{display:flex;gap:26px;position:relative;}
+.org-row::before{
+  content:'';position:absolute;top:-22px;left:calc(50% - 0px);width:1px;height:0;
+}
+.org-branch{display:flex;flex-direction:column;align-items:center;}
+
+/* timer */
+.timer-display{
+  background:#0c0f11;border:1px solid var(--border);border-radius:10px;
+  padding:26px;text-align:center;margin-bottom:16px;
+}
+.timer-num{font-family:'JetBrains Mono',monospace;font-size:56px;color:var(--yellow);letter-spacing:.02em;}
+.timer-stage{font-size:13px;color:var(--text-dim);margin-top:4px;text-transform:uppercase;letter-spacing:.08em;}
+.timer-controls{display:flex;gap:10px;justify-content:center;margin-top:16px;flex-wrap:wrap;}
+.timer-track{height:8px;background:var(--panel-2);border-radius:4px;margin-top:16px;overflow:hidden;border:1px solid var(--border);}
+.timer-fill{height:100%;background:linear-gradient(90deg,var(--blue),var(--yellow));width:0%;transition:width .3s linear;}
+
+.qa-card{background:var(--panel-2);border:1px solid var(--border);border-radius:6px;padding:16px;margin-bottom:12px;}
+.qa-card .q{font-size:13.5px;color:var(--yellow);margin-bottom:10px;font-weight:600;}
+
+.footer-nav{
+  display:flex;justify-content:space-between;margin-top:28px;padding-top:18px;border-top:1px solid var(--border);
+}
+
+.export-preview{
+  background:var(--panel-2);border:1px solid var(--border);border-radius:6px;padding:16px;
+  font-family:'JetBrains Mono',monospace;font-size:11.5px;color:var(--text-dim);white-space:pre-wrap;
+  max-height:340px;overflow:auto;line-height:1.6;
+}
+.hazard-strip{height:8px;background:var(--stripe);border-radius:4px;margin:22px 0;}
+
+/* compact inputs inside editable tables (presupuesto / cronograma) */
+#tablaPresupuesto td, #tablaCronograma td{padding:5px 6px;vertical-align:middle;}
+#tablaPresupuesto input, #tablaCronograma input, #tablaCronograma select{
+  padding:6px 8px;font-size:12.5px;border-radius:4px;min-width:0;
+}
+#tablaPresupuesto tbody tr:hover, #tablaCronograma tbody tr:hover{background:transparent;}
+</style>
+</head>
+<body>
+
+<div class="app">
+  <!-- SIDEBAR -->
+  <nav class="panel-nav">
+    <div class="brand"><div class="dot"></div><span>SG&#8209;SST&nbsp;· Caribe S.A.S.</span></div>
+
+    <div class="navlist" id="navlist">
+      <button class="navbtn active" data-view="intro"><span class="num">00</span>Inicio<span class="led"></span></button>
+      <button class="navbtn" data-view="diagnostico"><span class="num">01</span>Diagnóstico<span class="led"></span></button>
+      <button class="navbtn" data-view="fase1"><span class="num">02</span>Planeación<span class="led"></span></button>
+      <button class="navbtn" data-view="fase2"><span class="num">03</span>Organización<span class="led"></span></button>
+      <button class="navbtn" data-view="fase3"><span class="num">04</span>Dirección<span class="led"></span></button>
+      <button class="navbtn" data-view="fase4"><span class="num">05</span>Control &amp; KPI<span class="led"></span></button>
+      <button class="navbtn" data-view="simulacro"><span class="num">06</span>Simulacro Junta<span class="led"></span></button>
+      <button class="navbtn" data-view="exportar"><span class="num">07</span>Exportar<span class="led"></span></button>
+    </div>
+
+    <div class="progress-mini">
+      Avance del informe
+      <div class="progress-track"><div class="progress-fill" id="progressFill"></div></div>
+    </div>
+
+    <div class="audio-toggle">
+      <span id="audioLabel">Guía de voz: activada</span>
+      <div class="switch on" id="audioSwitch"></div>
+    </div>
+
+    <div class="mini3d-wrap">
+      <canvas id="mini3d"></canvas>
+      <div class="mini3d-label">Casco de seguridad</div>
+    </div>
+  </nav>
+
+  <!-- MAIN -->
+  <main class="stage">
+    <header class="topbar">
+      <h1>Simulador de Reestructuración SG&#8209;SST</h1>
+      <div class="sub">Logística &amp; Transporte del Caribe S.A.S. — 120 trabajadores · 14 accidentes en el último trimestre</div>
+    </header>
+
+    <!-- ===================== INTRO ===================== -->
+    <section class="view active" id="view-intro">
+      <div class="section-eyebrow">Bienvenida</div>
+      <div class="cover-info">
+        <div class="uni">Universidad Americana</div>
+        <dl>
+          <dt>Docente</dt><dd>Nicolás Bilbao</dd>
+          <dt>Materia</dt><dd>Introducción a la Administración</dd>
+          <dt>Programa</dt><dd>Ingeniería en Seguridad y Salud en el Trabajo</dd>
+        </dl>
+      </div>
+      <div class="welcome-banner" id="welcomeBannerIntro"></div>
+      <h2 class="section-title">Ustedes son el equipo consultor</h2>
+      <p class="section-lede">Este simulador los guía, paso a paso, por las cuatro fases del proceso administrativo (Planeación, Organización, Dirección y Control) para construir el Informe Escrito y preparar el Video de Sustentación que exige el caso. Cada sección trae una guía por voz, los datos reales de la bitácora de accidentes y la normativa aplicable.</p>
+
+      <div class="hero">
+        <canvas id="hero3d"></canvas>
+        <div class="hero-caption">Bodega y patio de montacargas — el mismo escenario donde ocurrieron los 14 accidentes del trimestre.</div>
+      </div>
+
+      <div class="guide-box">
+        <p id="guide-intro">Bienvenidos al simulador de la crisis de Logística y Transporte del Caribe. La empresa creció a 120 trabajadores sin estructurar su sistema de gestión de seguridad y salud en el trabajo, y hoy enfrenta 14 accidentes en un solo trimestre. Su misión es diagnosticar, planear, organizar, dirigir y controlar la solución, apoyados en la normativa colombiana vigente. Usen el menú de la izquierda para avanzar por cada fase; cada botón de altavoz les leerá las instrucciones en voz alta.</p>
+        <button class="speak-btn" onclick="speakEl('guide-intro')">🔊 Escuchar</button>
+      </div>
+
+      <button class="start-btn" onclick="startDiagnosis()">Comenzar el diagnóstico →</button>
+    </section>
+
+    <!-- ===================== DIAGNÓSTICO ===================== -->
+    <section class="view" id="view-diagnostico">
+      <div class="section-eyebrow">Punto de partida</div>
+      <div class="welcome-banner" id="welcomeBannerDiag"></div>
+      <h2 class="section-title">Diagnóstico exprés de la crisis</h2>
+
+      <div class="guide-box">
+        <p id="guide-diag">Antes de planear, confirmen que entienden el problema. La alta dirección ve la seguridad como un gasto inútil, los supervisores presionan por velocidad sobre seguridad, los operarios no usan sus equipos de protección personal porque incomodan, y el COPASST existe en el papel pero no se reúne ni tiene funciones asignadas. Sin planeación, sin organización clara y sin ningún indicador medido, la accidentalidad seguirá creciendo. Anoten aquí, con sus propias palabras, cuál creen que es la causa raíz administrativa detrás de los catorce accidentes.</p>
+        <button class="speak-btn" onclick="speakEl('guide-diag')">🔊 Escuchar</button>
+      </div>
+
+      <div class="stat-row">
+        <div class="stat"><div class="k">Trabajadores</div><div class="v">120</div></div>
+        <div class="stat"><div class="k">Accidentes / trimestre</div><div class="v red">14</div></div>
+        <div class="stat"><div class="k">Días de incapacidad</div><div class="v red">99</div></div>
+        <div class="stat"><div class="k">Costo directo estimado</div><div class="v">$17.6M</div></div>
+      </div>
+
+      <div class="grid2">
+        <div class="card">
+          <h3>Fallas identificadas</h3>
+          <ul style="margin:0;padding-left:18px;color:var(--text-dim);font-size:13px;line-height:1.9;">
+            <li>Sin metas de prevención ni presupuesto para EPP o mantenimiento</li>
+            <li>Nadie sabe a quién reportar actos o condiciones inseguras</li>
+            <li>COPASST inactivo, sin funciones asignadas</li>
+            <li>Cultura de "la seguridad estorba" en dirección, supervisión y planta</li>
+            <li>Cero medición de indicadores, cero acción correctiva</li>
+          </ul>
+        </div>
+        <div class="card">
+          <h3>Su diagnóstico (causa raíz administrativa)</h3>
+          <div class="field">
+            <textarea id="in-diagRaiz" placeholder="Ej.: la crisis es un problema de planeación y control ausentes, no de mala suerte operativa..."></textarea>
+          </div>
+        </div>
+      </div>
+
+      <div class="footer-nav">
+        <button class="ghost-btn" onclick="goTo('intro')">← Inicio</button>
+        <button class="start-btn" onclick="goTo('fase1')">Ir a Fase 1: Planeación →</button>
+      </div>
+    </section>
+
+    <!-- ===================== FASE 1: PLANEACIÓN ===================== -->
+    <section class="view" id="view-fase1">
+      <div class="section-eyebrow">Fase 1 · Proceso administrativo</div>
+      <h2 class="section-title">Planeación</h2>
+      <div>
+        <span class="norm-tag">Decreto 1072/2015 · Cap. 6</span>
+        <span class="norm-tag">Resolución 0312/2019</span>
+      </div>
+
+      <div class="guide-box">
+        <p id="guide-fase1">La planeación fija el rumbo. Redacten una visión del área de SST a dos años, y tres objetivos que se alineen verticalmente entre sí: el objetivo estratégico lo asume la alta dirección, el táctico lo ejecuta el área de SST, y el operacional lo vive la planta. Un objetivo estratégico de reducir la accidentalidad debe bajar a un objetivo táctico de implementar el sistema de gestión, y de ahí a un objetivo operacional concreto, como el uso permanente de equipos de protección personal en el patio de montacargas. Definan también un presupuesto que responda a los costos reales de la bitácora: los accidentes de este trimestre ya costaron más de diecisiete millones y medio de pesos.</p>
+        <button class="speak-btn" onclick="speakEl('guide-fase1')">🔊 Escuchar</button>
+      </div>
+
+      <div class="card">
+        <h3>Visión de SST a 2 años</h3>
+        <div class="field"><textarea id="in-vision" placeholder="En 2 años, Logística y Transporte del Caribe será reconocida por..."></textarea></div>
+      </div>
+
+      <div class="card">
+        <h3>Alineación vertical de objetivos</h3>
+        <div class="grid3">
+          <div class="field">
+            <label>Estratégico (Alta Dirección)</label>
+            <textarea id="in-objEstrategico" placeholder="Reducir la accidentalidad en un X% en 12 meses..."></textarea>
+          </div>
+          <div class="field">
+            <label>Táctico (Área de SST)</label>
+            <textarea id="in-objTactico" placeholder="Implementar el SG-SST según Resolución 0312 en 6 meses..."></textarea>
+          </div>
+          <div class="field">
+            <label>Operacional (Planta / operarios)</label>
+            <textarea id="in-objOperacional" placeholder="100% de uso de EPP en patio de montacargas desde el mes 1..."></textarea>
+          </div>
+        </div>
+      </div>
+
+      <div class="card">
+        <h3>Presupuesto estimado (6 meses)</h3>
+        <p style="font-size:12px;color:var(--text-faint);margin:-4px 0 10px;">Referencia: el costo ya causado por los 14 accidentes es de <span class="mono" style="color:var(--yellow)">$17.600.000 COP</span>. Un presupuesto preventivo razonable suele ubicarse por debajo de ese costo ya asumido. Esta tabla alimenta directamente el archivo Excel de presupuesto.</p>
+        <div class="logbook-wrap" style="max-height:none;">
+          <table id="tablaPresupuesto">
+            <thead><tr><th style="width:22%">Rubro</th><th>Descripción</th><th style="width:10%">Cantidad</th><th style="width:15%">Valor unitario</th><th style="width:15%">Valor total</th><th style="width:6%"></th></tr></thead>
+            <tbody id="presupuestoBody"></tbody>
+          </table>
+        </div>
+        <div style="display:flex;justify-content:space-between;align-items:center;margin-top:10px;">
+          <button class="ghost-btn" onclick="addPresupuestoRow()">+ Agregar rubro</button>
+          <div class="stat" style="min-width:200px;"><div class="k">Total presupuesto</div><div class="v" id="presupuestoTotal">$0</div></div>
+        </div>
+      </div>
+
+      <div class="card">
+        <h3>Cronograma de acción (6 meses)</h3>
+        <p style="font-size:12px;color:var(--text-faint);margin:-4px 0 10px;">Definan cada actividad, el responsable y el mes de inicio y fin. Esta tabla alimenta directamente el archivo Excel de cronograma.</p>
+        <div class="logbook-wrap" style="max-height:none;">
+          <table id="tablaCronograma">
+            <thead><tr><th style="width:34%">Actividad</th><th style="width:20%">Responsable</th><th style="width:14%">Mes inicio</th><th style="width:14%">Mes fin</th><th style="width:12%">Fase (Deming)</th><th style="width:6%"></th></tr></thead>
+            <tbody id="cronogramaBody"></tbody>
+          </table>
+        </div>
+        <button class="ghost-btn" onclick="addCronogramaRow()" style="margin-top:10px;">+ Agregar actividad</button>
+      </div>
+
+      <div class="footer-nav">
+        <button class="ghost-btn" onclick="goTo('diagnostico')">← Diagnóstico</button>
+        <button class="start-btn" onclick="goTo('fase2')">Ir a Fase 2: Organización →</button>
+      </div>
+    </section>
+
+    <!-- ===================== FASE 2: ORGANIZACIÓN ===================== -->
+    <section class="view" id="view-fase2">
+      <div class="section-eyebrow">Fase 2 · Proceso administrativo</div>
+      <h2 class="section-title">Organización</h2>
+      <div><span class="norm-tag">Decreto 1072/2015</span><span class="norm-tag">Ley 1562/2012</span></div>
+
+      <div class="guide-box">
+        <p id="guide-fase2">La organización asigna quién hace qué y con qué autoridad. Ubiquen al Responsable de SST en el organigrama, cerca de la Gerencia General para que tenga peso decisorio, y definan el perfil de cada rol: Gerencia General, Responsable de SST, Supervisores de Operaciones y el COPASST, que hoy existe solo en el papel. El Decreto 1072 exige que el sistema de gestión tenga responsables designados y recursos asignados; sin esa claridad, nadie sabrá a quién reportar un montacargas en mal estado.</p>
+        <button class="speak-btn" onclick="speakEl('guide-fase2')">🔊 Escuchar</button>
+      </div>
+
+      <div class="card">
+        <h3>Organigrama funcional</h3>
+        <div class="orgchart">
+          <div class="org-node top">Gerencia General</div>
+          <div class="org-line"></div>
+          <div class="org-node">Responsable / Ingeniero de SST</div>
+          <div class="org-line"></div>
+          <div class="org-row">
+            <div class="org-branch"><div class="org-node">Supervisores de Operaciones</div></div>
+            <div class="org-branch"><div class="org-node">COPASST</div></div>
+          </div>
+        </div>
+      </div>
+
+      <div class="grid2">
+        <div class="card">
+          <h3>Gerencia General</h3>
+          <div class="field"><textarea id="in-perfilGerencia" placeholder="Responsabilidad: aprobar presupuesto SST, asumir liderazgo visible..."></textarea></div>
+        </div>
+        <div class="card">
+          <h3>Responsable de SST</h3>
+          <div class="field"><textarea id="in-perfilSST" placeholder="Perfil: profesional en SST con licencia vigente. Autoridad para..."></textarea></div>
+        </div>
+        <div class="card">
+          <h3>Supervisores de Operaciones</h3>
+          <div class="field"><textarea id="in-perfilSupervisores" placeholder="Responsabilidad: verificar uso de EPP, reportar condiciones inseguras..."></textarea></div>
+        </div>
+        <div class="card">
+          <h3>COPASST</h3>
+          <div class="field"><textarea id="in-perfilCopasst" placeholder="Funciones: reunirse mensualmente, investigar accidentes, verificar..."></textarea></div>
+        </div>
+      </div>
+
+      <div class="card">
+        <h3>Coordinación de recursos para capacitación ergonómica</h3>
+        <div class="field"><textarea id="in-recursos" placeholder="Recursos humanos: ARL como aliado técnico / Recursos técnicos: fajas y ayudas mecánicas / Recursos financieros: presupuesto asignado en Fase 1..."></textarea></div>
+      </div>
+
+      <div class="footer-nav">
+        <button class="ghost-btn" onclick="goTo('fase1')">← Planeación</button>
+        <button class="start-btn" onclick="goTo('fase3')">Ir a Fase 3: Dirección →</button>
+      </div>
+    </section>
+
+    <!-- ===================== FASE 3: DIRECCIÓN ===================== -->
+    <section class="view" id="view-fase3">
+      <div class="section-eyebrow">Fase 3 · Proceso administrativo</div>
+      <h2 class="section-title">Dirección</h2>
+      <div><span class="norm-tag">Resolución 2400/1979</span></div>
+
+      <div class="guide-box">
+        <p id="guide-fase3">Dirigir es mover voluntades, no solo firmar procedimientos. El Gerente tiene que instalar con su propio comportamiento una cultura donde la seguridad no compita con la velocidad de entrega. Piensen en un estilo de liderazgo, un plan de incentivos que haga que usar el equipo de protección sea más atractivo que evitarlo, y un canal de comunicación de doble vía para que un operario pueda reportar un piso húmedo o un montacargas sin señalización en el momento en que lo ve, no después del accidente.</p>
+        <button class="speak-btn" onclick="speakEl('guide-fase3')">🔊 Escuchar</button>
+      </div>
+
+      <div class="card">
+        <h3>Estilo de liderazgo del Gerente</h3>
+        <div class="field">
+          <label>Selecciona el estilo que sustentarán</label>
+          <select id="in-liderazgo">
+            <option value="">— Seleccionar —</option>
+            <option>Liderazgo transformacional (inspira con el ejemplo y la visión compartida)</option>
+            <option>Liderazgo situacional (ajusta el estilo según la madurez del equipo)</option>
+            <option>Liderazgo participativo/democrático (decide con el COPASST y los operarios)</option>
+            <option>Liderazgo visible en piso ("management by walking around")</option>
+          </select>
+        </div>
+        <div class="field"><textarea id="in-liderazgoJust" placeholder="Justificación: por qué este estilo es el adecuado para esta empresa..."></textarea></div>
+      </div>
+
+      <div class="grid2">
+        <div class="card">
+          <h3>Plan de motivación e incentivos</h3>
+          <div class="field"><textarea id="in-incentivos" placeholder="Reconocimiento por área sin accidentes, gamificación del uso de EPP, incentivo económico atado al reporte temprano de riesgos..."></textarea></div>
+        </div>
+        <div class="card">
+          <h3>Comunicación bidireccional</h3>
+          <div class="field"><textarea id="in-comunicacion" placeholder="Canal: línea directa / buzón físico y digital / reunión diaria de 5 minutos antes del turno..."></textarea></div>
+        </div>
+      </div>
+
+      <div class="footer-nav">
+        <button class="ghost-btn" onclick="goTo('fase2')">← Organización</button>
+        <button class="start-btn" onclick="goTo('fase4')">Ir a Fase 4: Control →</button>
+      </div>
+    </section>
+
+    <!-- ===================== FASE 4: CONTROL ===================== -->
+    <section class="view" id="view-fase4">
+      <div class="section-eyebrow">Fase 4 · Proceso administrativo</div>
+      <h2 class="section-title">Control &amp; indicadores</h2>
+      <div><span class="norm-tag">Resolución 0312/2019</span><span class="norm-tag">GTC 45</span><span class="norm-tag">Decreto 1477/2014</span></div>
+
+      <div class="guide-box">
+        <p id="guide-fase4">Nunca inventen una cifra: todo indicador sale de la bitácora real de los catorce accidentes. Abajo pueden revisar la bitácora completa, y la calculadora obtiene automáticamente las horas hombre trabajadas, el índice de frecuencia y el índice de severidad según la fórmula de la GTC 45 y la Resolución 0312. Ajusten los parámetros si su docente les pide otro periodo, y observen el gráfico de causas: el levantamiento manual de cargas y el no uso de equipo de protección personal concentran más de la mitad de los accidentes, así que ahí debe apuntar la mayor parte del presupuesto preventivo.</p>
+        <button class="speak-btn" onclick="speakEl('guide-fase4')">🔊 Escuchar</button>
+      </div>
+
+      <div class="card">
+        <h3>Bitácora trimestral de accidentes (anexo del caso)</h3>
+        <div class="logbook-wrap">
+          <table>
+            <thead><tr><th>N°</th><th>Tipo de evento</th><th>Área</th><th>Días inc.</th><th>Costo</th><th>Causa raíz</th></tr></thead>
+            <tbody id="logbookBody"></tbody>
+          </table>
+        </div>
+      </div>
+
+      <div class="card">
+        <h3>Parámetros de cálculo</h3>
+        <div class="grid3">
+          <div class="field"><label>N° trabajadores</label><input type="number" id="pTrab" value="120"></div>
+          <div class="field"><label>Horas / día</label><input type="number" id="pHoras" value="8"></div>
+          <div class="field"><label>Días laborales / mes</label><input type="number" id="pDias" value="25"></div>
+          <div class="field"><label>Meses del periodo</label><input type="number" id="pMeses" value="3"></div>
+          <div class="field"><label>Constante K (GTC 45)</label><input type="number" id="pK" value="240000"></div>
+        </div>
+      </div>
+
+      <div class="led-panel" id="kpiPanel">
+        <div class="led"><div class="lbl">Horas hombre trabajadas</div><div class="num mono" id="kpiHHT">0</div></div>
+        <div class="led"><div class="lbl">Índice de Frecuencia (IF)</div><div class="num mono" id="kpiIF">0</div></div>
+        <div class="led"><div class="lbl">Índice de Severidad (IS)</div><div class="num mono" id="kpiIS">0</div></div>
+        <div class="led"><div class="lbl">Prom. días inc. / accidente</div><div class="num mono" id="kpiProm">0</div></div>
+      </div>
+      <div class="formula-box" id="formulaBox"></div>
+
+      <div class="grid2" style="margin-top:18px;">
+        <div class="card">
+          <h3>Accidentes por causa raíz (Pareto)</h3>
+          <div class="barchart" id="chartCausas"></div>
+        </div>
+        <div class="card">
+          <h3>Accidentes por área</h3>
+          <div class="barchart" id="chartAreas"></div>
+        </div>
+      </div>
+
+      <div class="card">
+        <h3>Tercer KPI: % capacitaciones ejecutadas vs. programadas</h3>
+        <div class="grid3">
+          <div class="field"><label>Capacitaciones programadas</label><input type="number" id="capProg" value="12"></div>
+          <div class="field"><label>Capacitaciones ejecutadas</label><input type="number" id="capEjec" value="0"></div>
+          <div class="field"><label>Resultado</label><input type="text" id="capResultado" readonly value="0%"></div>
+        </div>
+      </div>
+
+      <div class="card">
+        <h3>Protocolo de acción inmediata ante un nuevo accidente</h3>
+        <div class="field"><textarea id="in-protocolo" placeholder="1. Atención médica inmediata / 2. Acordonar el área / 3. Reportar a la ARL en las 48h / 4. Investigar causa raíz con COPASST..."></textarea></div>
+      </div>
+
+      <div class="footer-nav">
+        <button class="ghost-btn" onclick="goTo('fase3')">← Dirección</button>
+        <button class="start-btn" onclick="goTo('simulacro')">Ir al Simulacro de Junta →</button>
+      </div>
+    </section>
+
+    <!-- ===================== SIMULACRO ===================== -->
+    <section class="view" id="view-simulacro">
+      <div class="section-eyebrow">Preparación del video</div>
+      <h2 class="section-title">Simulacro de Junta Directiva</h2>
+
+      <div class="guide-box">
+        <p id="guide-sim">Practiquen el pitch con cronómetro antes de grabar. El cronómetro los avisa por voz cuando cambia de fase: introducción y diagnóstico exprés, planeación y organización, dirección y control, y el cierre convincente. Después practiquen la ronda de preguntas: usen el botón para que les caiga una pregunta al azar, tal como puede ocurrir frente a la Junta, y redacten su respuesta bajo presión.</p>
+        <button class="speak-btn" onclick="speakEl('guide-sim')">🔊 Escuchar</button>
+      </div>
+
+      <div class="card">
+        <h3>Cronómetro de sustentación (≈5 min)</h3>
+        <div class="timer-display">
+          <div class="timer-num mono" id="timerNum">00:30</div>
+          <div class="timer-stage" id="timerStage">Introducción y diagnóstico exprés</div>
+          <div class="timer-track"><div class="timer-fill" id="timerFill"></div></div>
+          <div class="timer-controls">
+            <button class="start-btn" id="timerStart" onclick="timerStartPause()">Iniciar</button>
+            <button class="ghost-btn" onclick="timerReset()">Reiniciar</button>
+          </div>
+        </div>
+      </div>
+
+      <div class="card">
+        <h3>Ronda de preguntas — práctica bajo presión</h3>
+        <button class="ghost-btn" onclick="sortearPregunta()" style="margin-bottom:14px;">🎲 Sortear pregunta de la Junta</button>
+        <div class="qa-card">
+          <div class="q" id="qaQuestion">Pulsen "Sortear pregunta" para comenzar.</div>
+          <textarea id="in-qaRespuesta" placeholder="Escriban aquí su respuesta improvisada..."></textarea>
+        </div>
+      </div>
+
+      <div class="footer-nav">
+        <button class="ghost-btn" onclick="goTo('fase4')">← Control</button>
+        <button class="start-btn" onclick="goTo('exportar')">Ir a Exportar →</button>
+      </div>
+    </section>
+
+    <!-- ===================== EXPORTAR ===================== -->
+    <section class="view" id="view-exportar">
+      <div class="section-eyebrow">Cierre</div>
+      <h2 class="section-title">Exportar borrador del informe</h2>
+      <div class="guide-box">
+        <p id="guide-export">Aquí pueden generar los cuatro entregables finales del caso: el Informe Escrito en PDF (con portada, indicadores y referencias APA 7), el Dashboard en HTML para proyectar durante la sustentación ante la Junta, y los archivos Excel del cronograma y el presupuesto, listos para anexar. Todos se generan automáticamente con lo que ustedes escribieron en cada fase y con los indicadores calculados sobre la bitácora real.</p>
+        <button class="speak-btn" onclick="speakEl('guide-export')">🔊 Escuchar</button>
+      </div>
+
+      <div class="hazard-strip"></div>
+
+      <div class="grid2">
+        <div class="card">
+          <h3>📄 Informe Escrito</h3>
+          <p style="font-size:12.5px;color:var(--text-dim);margin:-4px 0 12px;">Documento PDF con portada, diagnóstico, las 4 fases del proceso administrativo, indicadores, presupuesto, cronograma y referencias normativas en APA 7.</p>
+          <button class="start-btn" onclick="generatePDFReport()">⬇ Descargar Informe (.pdf)</button>
+        </div>
+        <div class="card">
+          <h3>📊 Dashboard de Sustentación</h3>
+          <p style="font-size:12.5px;color:var(--text-dim);margin:-4px 0 12px;">Página HTML autocontenida con los KPI, gráficos de causas/áreas y objetivos clave, lista para proyectar en la Junta Directiva.</p>
+          <button class="start-btn" onclick="generateDashboardHTML()">⬇ Descargar Dashboard (.html)</button>
+        </div>
+        <div class="card">
+          <h3>🗓️ Cronograma</h3>
+          <p style="font-size:12.5px;color:var(--text-dim);margin:-4px 0 12px;">Libro de Excel con la tabla de actividades, responsables, meses de ejecución y fase del ciclo PHVA (Planear-Hacer-Verificar-Actuar).</p>
+          <button class="start-btn" onclick="exportCronogramaXLSX()">⬇ Descargar Cronograma (.xlsx)</button>
+        </div>
+        <div class="card">
+          <h3>💰 Presupuesto</h3>
+          <p style="font-size:12.5px;color:var(--text-dim);margin:-4px 0 12px;">Libro de Excel con los rubros, cantidades, valores unitarios, totales y comparación contra el costo ya causado por los accidentes.</p>
+          <button class="start-btn" onclick="exportPresupuestoXLSX()">⬇ Descargar Presupuesto (.xlsx)</button>
+        </div>
+      </div>
+
+      <div class="card">
+        <h3>Borrador de texto (opcional, para copiar y pegar)</h3>
+        <div style="display:flex;gap:10px;margin-bottom:14px;flex-wrap:wrap;">
+          <button class="ghost-btn" onclick="downloadReport()">⬇ Descargar borrador (.txt)</button>
+          <button class="ghost-btn" onclick="refreshExport()">↻ Actualizar vista previa</button>
+          <button class="ghost-btn" onclick="copyReport()">📋 Copiar todo</button>
+        </div>
+        <div class="export-preview" id="exportPreview">Presiona "Actualizar vista previa" para generar el borrador.</div>
+      </div>
+
+      <div class="footer-nav">
+        <button class="ghost-btn" onclick="goTo('simulacro')">← Simulacro</button>
+        <button class="ghost-btn" onclick="goTo('intro')">Volver al inicio</button>
+      </div>
+    </section>
+
+  </main>
+</div>
+
+
+<div class="name-modal" id="nameModal" role="dialog" aria-modal="true" aria-labelledby="nameTitle">
+  <div class="name-box">
+    <h3 id="nameTitle">Identificación del estudiante</h3>
+    <p>Escribe tu nombre completo. Aparecerá en la bienvenida y en todos los documentos que generes (PDF, HTML, Excel y borrador).</p>
+    <input type="text" id="studentNameInput" placeholder="Nombre completo" autocomplete="name" maxlength="80">
+    <div class="name-err" id="nameErr"></div>
+    <div class="name-actions">
+      <button class="ghost-btn" type="button" onclick="closeNameModal()">Cancelar</button>
+      <button class="start-btn" type="button" onclick="confirmStudentName()">Continuar →</button>
+    </div>
+  </div>
+</div>
+<script>
+/* ============== DATOS INSTITUCIONALES + ESTUDIANTE ============== */
+const INFO = {
+  universidad:'UNIVERSIDAD AMERICANA',
+  docente:'NICOLAS BILBAO',
+  materia:'INTRODUCCION A LA ADMINISTRACION',
+  programa:'INGENIERIA EN SEGURIDAD Y SALUD EN EL TRABAJO'
+};
+let studentName = '';
+
+function titleCase(n){
+  return n.toLowerCase().replace(/(^|\s)(\S)/g, (m,a,b)=>a+b.toUpperCase());
+}
+// Nombre seguro para archivos: sin tildes, sin símbolos, con guiones bajos
+function fileSafeName(){
+  const base = (studentName || 'Estudiante').normalize('NFD').replace(/[\u0300-\u036f]/g,'')
+    .replace(/[^A-Za-z0-9]+/g,'_').replace(/^_+|_+$/g,'');
+  return base || 'Estudiante';
+}
+function escHtml(t){
+  return String(t).replace(/[&<>"']/g, c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));
+}
+function ensureStudent(){
+  if(studentName) return true;
+  openNameModal();
+  return false;
+}
+function openNameModal(){
+  const m = document.getElementById('nameModal');
+  m.classList.add('open');
+  document.getElementById('nameErr').textContent = '';
+  const inp = document.getElementById('studentNameInput');
+  inp.value = studentName;
+  setTimeout(()=>inp.focus(), 50);
+}
+function closeNameModal(){ document.getElementById('nameModal').classList.remove('open'); }
+let pendingAfterName = null;
+function startDiagnosis(){
+  if(studentName){ goTo('diagnostico'); return; }
+  pendingAfterName = ()=>goTo('diagnostico');
+  openNameModal();
+}
+function confirmStudentName(){
+  const raw = document.getElementById('studentNameInput').value.trim().replace(/\s+/g,' ');
+  const words = raw.split(' ').filter(Boolean);
+  if(raw.length < 5 || words.length < 2){
+    document.getElementById('nameErr').textContent = 'Escribe tu nombre completo (nombre y apellido).';
+    return;
+  }
+  studentName = titleCase(raw);
+  closeNameModal();
+  const msg = '<b>Bienvenido, Ingeniero ' + escHtml(studentName) + '.</b> Gracias por identificarse; su nombre quedará registrado en todos los documentos que genere.';
+  ['welcomeBannerIntro','welcomeBannerDiag'].forEach(id=>{
+    const b = document.getElementById(id);
+    if(b){ b.innerHTML = msg; b.style.display = 'block'; }
+  });
+  try{
+    if('speechSynthesis' in window && typeof audioOn !== 'undefined' && audioOn){
+      const u = new SpeechSynthesisUtterance('Bienvenido, ingeniero ' + studentName);
+      u.lang = 'es-CO'; speechSynthesis.cancel(); speechSynthesis.speak(u);
+    }
+  }catch(e){}
+  if(pendingAfterName){ const f = pendingAfterName; pendingAfterName = null; f(); }
+}
+document.addEventListener('keydown', e=>{
+  const m = document.getElementById('nameModal');
+  if(!m.classList.contains('open')) return;
+  if(e.key === 'Enter') confirmStudentName();
+  if(e.key === 'Escape') closeNameModal();
+});
+
+/* ============== DATA: bitácora del anexo ============== */
+const bitacora = [
+ {n:1, tipo:'Lumbalgia', area:'Bodega 2', dias:8, costo:1200000, causa:'Levantamiento manual'},
+ {n:2, tipo:'Lumbalgia', area:'Bodega 1', dias:5, costo:780000, causa:'Levantamiento manual'},
+ {n:3, tipo:'Atrapamiento (mano)', area:'Patio montacargas', dias:12, costo:2400000, causa:'No uso de EPP'},
+ {n:4, tipo:'Lumbalgia', area:'Bodega 3', dias:3, costo:450000, causa:'Postura inadecuada'},
+ {n:5, tipo:'Golpe por objeto', area:'Zona de cargue', dias:2, costo:300000, causa:'Falta de señalización'},
+ {n:6, tipo:'Lumbalgia', area:'Bodega 1', dias:10, costo:1500000, causa:'Levantamiento manual'},
+ {n:7, tipo:'Caída mismo nivel', area:'Pasillo bodega 2', dias:1, costo:150000, causa:'Piso húmedo sin aviso'},
+ {n:8, tipo:'Atrapamiento (pie)', area:'Patio montacargas', dias:15, costo:3100000, causa:'No uso de EPP'},
+ {n:9, tipo:'Lumbalgia', area:'Bodega 2', dias:6, costo:900000, causa:'Levantamiento manual'},
+ {n:10, tipo:'Golpe con montacargas', area:'Patio montacargas', dias:0, costo:100000, causa:'Falta de señalización'},
+ {n:11, tipo:'Lumbalgia', area:'Bodega 3', dias:7, costo:1050000, causa:'Postura inadecuada'},
+ {n:12, tipo:'Corte en manos', area:'Bodega 1', dias:1, costo:120000, causa:'No uso de EPP (guantes)'},
+ {n:13, tipo:'Lumbalgia', area:'Bodega 2', dias:9, costo:1350000, causa:'Levantamiento manual'},
+ {n:14, tipo:'Atrapamiento (mano)', area:'Patio montacargas', dias:20, costo:4200000, causa:'No uso de EPP'}
+];
+
+const cop = v => '$' + v.toLocaleString('es-CO');
+
+function renderLogbook(){
+  const body = document.getElementById('logbookBody');
+  body.innerHTML = bitacora.map(r => `<tr>
+    <td>${r.n}</td><td>${r.tipo}</td><td>${r.area}</td><td>${r.dias}</td><td>${cop(r.costo)}</td>
+    <td><span class="tag-cause">${r.causa}</span></td></tr>`).join('');
+}
+
+/* ============== PRESUPUESTO (tabla editable) ============== */
+let presupuestoRows = [
+  {rubro:'Elementos de Protección Personal (EPP)', desc:'Guantes, botas antideslizantes, fajas lumbares', cant:120, valorUnit:45000},
+  {rubro:'Capacitación ergonómica', desc:'Jornadas con ARL sobre levantamiento manual de cargas', cant:4, valorUnit:350000},
+  {rubro:'Mantenimiento montacargas', desc:'Revisión preventiva y señalización de patio', cant:2, valorUnit:1200000},
+  {rubro:'Señalización industrial', desc:'Avisos, cinta antideslizante, demarcación de zonas', cant:1, valorUnit:900000}
+];
+function renderPresupuesto(){
+  const body = document.getElementById('presupuestoBody');
+  body.innerHTML = presupuestoRows.map((r,i)=>`<tr>
+    <td><input type="text" value="${r.rubro}" oninput="presupuestoRows[${i}].rubro=this.value"></td>
+    <td><input type="text" value="${r.desc}" oninput="presupuestoRows[${i}].desc=this.value"></td>
+    <td><input type="number" value="${r.cant}" min="0" style="width:100%" oninput="presupuestoRows[${i}].cant=+this.value||0;renderPresupuesto();"></td>
+    <td><input type="number" value="${r.valorUnit}" min="0" style="width:100%" oninput="presupuestoRows[${i}].valorUnit=+this.value||0;renderPresupuesto();"></td>
+    <td class="mono" style="color:var(--yellow);white-space:nowrap;">${cop(r.cant*r.valorUnit)}</td>
+    <td><button class="ghost-btn" style="padding:6px 8px;" onclick="presupuestoRows.splice(${i},1);renderPresupuesto();">✕</button></td>
+  </tr>`).join('');
+  const total = presupuestoRows.reduce((s,r)=>s+(r.cant*r.valorUnit),0);
+  document.getElementById('presupuestoTotal').textContent = cop(total);
+}
+function addPresupuestoRow(){
+  presupuestoRows.push({rubro:'', desc:'', cant:1, valorUnit:0});
+  renderPresupuesto();
+}
+function presupuestoTotalValue(){
+  return presupuestoRows.reduce((s,r)=>s+(r.cant*r.valorUnit),0);
+}
+
+/* ============== CRONOGRAMA (tabla editable) ============== */
+let cronogramaRows = [
+  {actividad:'Dotación de EPP y reactivación del COPASST', responsable:'Responsable de SST', mesIni:1, mesFin:1, fase:'Planear'},
+  {actividad:'Capacitación ergonómica sobre levantamiento manual', responsable:'ARL / Responsable de SST', mesIni:2, mesFin:2, fase:'Hacer'},
+  {actividad:'Mantenimiento preventivo de montacargas', responsable:'Supervisores de Operaciones', mesIni:3, mesFin:3, fase:'Hacer'},
+  {actividad:'Señalización de zonas de riesgo', responsable:'Responsable de SST', mesIni:3, mesFin:4, fase:'Hacer'},
+  {actividad:'Medición de indicadores (IF, IS, % capacitación)', responsable:'Responsable de SST', mesIni:4, mesFin:6, fase:'Verificar'},
+  {actividad:'Ajustes y acciones correctivas', responsable:'COPASST', mesIni:5, mesFin:6, fase:'Actuar'}
+];
+function renderCronograma(){
+  const body = document.getElementById('cronogramaBody');
+  body.innerHTML = cronogramaRows.map((r,i)=>`<tr>
+    <td><input type="text" value="${r.actividad}" oninput="cronogramaRows[${i}].actividad=this.value"></td>
+    <td><input type="text" value="${r.responsable}" oninput="cronogramaRows[${i}].responsable=this.value"></td>
+    <td><input type="number" value="${r.mesIni}" min="1" max="6" style="width:100%" oninput="cronogramaRows[${i}].mesIni=+this.value||1"></td>
+    <td><input type="number" value="${r.mesFin}" min="1" max="6" style="width:100%" oninput="cronogramaRows[${i}].mesFin=+this.value||1"></td>
+    <td>
+      <select style="width:100%" onchange="cronogramaRows[${i}].fase=this.value">
+        ${['Planear','Hacer','Verificar','Actuar'].map(f=>`<option ${f===r.fase?'selected':''}>${f}</option>`).join('')}
+      </select>
+    </td>
+    <td><button class="ghost-btn" style="padding:6px 8px;" onclick="cronogramaRows.splice(${i},1);renderCronograma();">✕</button></td>
+  </tr>`).join('');
+}
+function addCronogramaRow(){
+  cronogramaRows.push({actividad:'', responsable:'', mesIni:1, mesFin:1, fase:'Planear'});
+  renderCronograma();
+}
+
+/* ============== KPI calculation ============== */
+function recalcKPI(){
+  const trab = +document.getElementById('pTrab').value || 0;
+  const horas = +document.getElementById('pHoras').value || 0;
+  const dias = +document.getElementById('pDias').value || 0;
+  const meses = +document.getElementById('pMeses').value || 0;
+  const K = +document.getElementById('pK').value || 0;
+
+  const HHT = trab * horas * dias * meses;
+  const nAcc = bitacora.length;
+  const diasTot = bitacora.reduce((s,r)=>s+r.dias,0);
+  const costoTot = bitacora.reduce((s,r)=>s+r.costo,0);
+
+  const IF = HHT ? (nAcc / HHT) * K : 0;
+  const IS = HHT ? (diasTot / HHT) * K : 0;
+  const prom = nAcc ? diasTot / nAcc : 0;
+
+  document.getElementById('kpiHHT').textContent = HHT.toLocaleString('es-CO');
+  document.getElementById('kpiIF').textContent = IF.toFixed(2);
+  document.getElementById('kpiIS').textContent = IS.toFixed(2);
+  document.getElementById('kpiProm').textContent = prom.toFixed(2);
+
+  document.getElementById('formulaBox').innerHTML =
+`HHT = trabajadores × horas/día × días/mes × meses
+    = ${trab} × ${horas} × ${dias} × ${meses} = <span class="res">${HHT.toLocaleString('es-CO')}</span> horas-hombre
+
+IF = (N° accidentes / HHT) × K = (${nAcc} / ${HHT.toLocaleString('es-CO')}) × ${K.toLocaleString('es-CO')} = <span class="res">${IF.toFixed(2)}</span>
+
+IS = (N° días perdidos / HHT) × K = (${diasTot} / ${HHT.toLocaleString('es-CO')}) × ${K.toLocaleString('es-CO')} = <span class="res">${IS.toFixed(2)}</span>
+
+Costo total ya causado por los 14 accidentes: ${cop(costoTot)}`;
+
+  renderCharts();
+}
+
+function renderCharts(){
+  const byCausa = {};
+  const byArea = {};
+  bitacora.forEach(r=>{
+    byCausa[r.causa] = (byCausa[r.causa]||0)+1;
+    byArea[r.area] = (byArea[r.area]||0)+1;
+  });
+  const total = bitacora.length;
+  const mkBars = (obj) => Object.entries(obj).sort((a,b)=>b[1]-a[1]).map(([k,v])=>{
+    const pct = (v/total*100);
+    return `<div class="bar-row"><div class="label">${k}</div><div class="bar-track"><div class="bar-fill" style="width:${pct}%"></div></div><div class="pct">${pct.toFixed(0)}%</div></div>`;
+  }).join('');
+  document.getElementById('chartCausas').innerHTML = mkBars(byCausa);
+  document.getElementById('chartAreas').innerHTML = mkBars(byArea);
+}
+
+function recalcCapacitaciones(){
+  const prog = +document.getElementById('capProg').value || 0;
+  const ejec = +document.getElementById('capEjec').value || 0;
+  const pct = prog ? (ejec/prog*100) : 0;
+  document.getElementById('capResultado').value = pct.toFixed(1) + '%';
+}
+
+['pTrab','pHoras','pDias','pMeses','pK'].forEach(id=>{
+  document.getElementById(id).addEventListener('input', recalcKPI);
+});
+['capProg','capEjec'].forEach(id=>{
+  document.getElementById(id).addEventListener('input', recalcCapacitaciones);
+});
+
+/* ============== NAV ============== */
+const views = ['intro','diagnostico','fase1','fase2','fase3','fase4','simulacro','exportar'];
+function goTo(id){
+  views.forEach(v=>{
+    document.getElementById('view-'+v).classList.toggle('active', v===id);
+  });
+  document.querySelectorAll('.navbtn').forEach(b=>{
+    b.classList.toggle('active', b.dataset.view===id);
+  });
+  markVisited(id);
+  window.scrollTo({top:0, behavior:'smooth'});
+}
+document.querySelectorAll('.navbtn').forEach(b=>{
+  b.addEventListener('click', ()=>goTo(b.dataset.view));
+});
+
+const visited = new Set(['intro']);
+function markVisited(id){
+  visited.add(id);
+  document.querySelectorAll('.navbtn').forEach(b=>{
+    if(visited.has(b.dataset.view)) b.classList.add('done');
+  });
+  updateProgress();
+}
+function updateProgress(){
+  const pct = (visited.size / views.length) * 100;
+  document.getElementById('progressFill').style.width = pct+'%';
+}
+
+/* ============== AUDIO GUIDE (speech synthesis) ============== */
+let audioOn = true;
+let esVoice = null;
+function loadVoices(){
+  const voices = window.speechSynthesis ? speechSynthesis.getVoices() : [];
+  esVoice = voices.find(v=>v.lang && v.lang.toLowerCase().startsWith('es')) || null;
+}
+if('speechSynthesis' in window){
+  loadVoices();
+  speechSynthesis.onvoiceschanged = loadVoices;
+}
+function speak(text){
+  if(!audioOn || !('speechSynthesis' in window)) return;
+  speechSynthesis.cancel();
+  const u = new SpeechSynthesisUtterance(text);
+  u.lang = 'es-CO';
+  if(esVoice) u.voice = esVoice;
+  u.rate = 0.98;
+  u.pitch = 1;
+  speechSynthesis.speak(u);
+}
+function speakEl(id){
+  const el = document.getElementById(id);
+  if(el) speak(el.innerText);
+}
+document.getElementById('audioSwitch').addEventListener('click', function(){
+  audioOn = !audioOn;
+  this.classList.toggle('on', audioOn);
+  document.getElementById('audioLabel').textContent = 'Guía de voz: ' + (audioOn ? 'activada' : 'silenciada');
+  if(!audioOn && 'speechSynthesis' in window) speechSynthesis.cancel();
+});
+
+/* ============== SIMULACRO TIMER ============== */
+const stages = [
+  {label:'Introducción y diagnóstico exprés', sec:30},
+  {label:'Pitch de Planeación y Organización', sec:90},
+  {label:'Pitch de Dirección y Control', sec:90},
+  {label:'Cierre convincante', sec:30},
+  {label:'Ronda de preguntas', sec:60}
+];
+let stageIdx = 0, timeLeft = stages[0].sec, timerHandle = null, running = false;
+const totalSec = stages.reduce((s,x)=>s+x.sec,0);
+
+function fmt(s){
+  const m = Math.floor(s/60).toString().padStart(2,'0');
+  const ss = (s%60).toString().padStart(2,'0');
+  return m+':'+ss;
+}
+function renderTimer(){
+  document.getElementById('timerNum').textContent = fmt(timeLeft);
+  document.getElementById('timerStage').textContent = stages[stageIdx].label;
+  const elapsedBefore = stages.slice(0,stageIdx).reduce((s,x)=>s+x.sec,0);
+  const elapsed = elapsedBefore + (stages[stageIdx].sec - timeLeft);
+  document.getElementById('timerFill').style.width = (elapsed/totalSec*100)+'%';
+}
+function timerStartPause(){
+  running = !running;
+  document.getElementById('timerStart').textContent = running ? 'Pausar' : 'Continuar';
+  if(running){
+    speak('Fase: ' + stages[stageIdx].label);
+    timerHandle = setInterval(()=>{
+      timeLeft--;
+      if(timeLeft < 0){
+        stageIdx++;
+        if(stageIdx >= stages.length){
+          clearInterval(timerHandle);
+          running = false;
+          document.getElementById('timerStart').textContent = 'Iniciar';
+          speak('Tiempo terminado. Cierren la sustentación.');
+          stageIdx = stages.length-1;
+          timeLeft = 0;
+          renderTimer();
+          return;
+        }
+        timeLeft = stages[stageIdx].sec;
+        speak('Siguiente fase: ' + stages[stageIdx].label);
+      }
+      renderTimer();
+    },1000);
+  } else {
+    clearInterval(timerHandle);
+  }
+}
+function timerReset(){
+  clearInterval(timerHandle);
+  running = false;
+  stageIdx = 0;
+  timeLeft = stages[0].sec;
+  document.getElementById('timerStart').textContent = 'Iniciar';
+  renderTimer();
+}
+
+const preguntasJunta = [
+  '¿Cuánto le cuesta a la empresa NO implementar esta propuesta, en términos de los 14 accidentes ya ocurridos?',
+  'Si el Gerente les dice que el presupuesto propuesto es muy alto, ¿qué recortarían y qué NO negociarían?',
+  '¿Cómo convencen a un supervisor que prioriza la velocidad de entrega sobre el uso de EPP?'
+];
+let lastQ = -1;
+function sortearPregunta(){
+  let idx;
+  do { idx = Math.floor(Math.random()*preguntasJunta.length); } while(idx===lastQ && preguntasJunta.length>1);
+  lastQ = idx;
+  document.getElementById('qaQuestion').textContent = preguntasJunta[idx];
+  document.getElementById('in-qaRespuesta').value = '';
+  speak(preguntasJunta[idx]);
+}
+
+/* ============== EXPORT ============== */
+function val(id){ const e = document.getElementById(id); return e ? (e.value||'').trim() : ''; }
+function buildReport(){
+  recalcKPI();
+  const nAcc = bitacora.length;
+  const diasTot = bitacora.reduce((s,r)=>s+r.dias,0);
+  const costoTot = bitacora.reduce((s,r)=>s+r.costo,0);
+  return `BORRADOR — INFORME SG-SST
+Logística & Transporte del Caribe S.A.S.
+====================================================
+ESTUDIANTE: Ingeniero ${studentName || '[sin nombre]'}
+DOCENTE: ${INFO.docente}
+MATERIA: ${INFO.materia}
+PROGRAMA: ${INFO.programa}
+${INFO.universidad}
+====================================================
+
+DIAGNÓSTICO
+Causa raíz administrativa: ${val('in-diagRaiz') || '[pendiente]'}
+
+FASE 1 — PLANEACIÓN
+Visión a 2 años: ${val('in-vision') || '[pendiente]'}
+Objetivo estratégico: ${val('in-objEstrategico') || '[pendiente]'}
+Objetivo táctico: ${val('in-objTactico') || '[pendiente]'}
+Objetivo operacional: ${val('in-objOperacional') || '[pendiente]'}
+
+Presupuesto (6 meses):
+${presupuestoRows.map(r=>`  - ${r.rubro || '[rubro]'} (${r.desc || 'sin descripción'}) — ${r.cant} x ${cop(r.valorUnit)} = ${cop(r.cant*r.valorUnit)}`).join('\n')}
+  TOTAL PRESUPUESTO: ${cop(presupuestoTotalValue())}
+
+Cronograma (6 meses):
+${cronogramaRows.map(r=>`  - [Mes ${r.mesIni}-${r.mesFin}] (${r.fase}) ${r.actividad || '[actividad]'} — Responsable: ${r.responsable || '[responsable]'}`).join('\n')}
+
+FASE 2 — ORGANIZACIÓN
+Perfil Gerencia General: ${val('in-perfilGerencia') || '[pendiente]'}
+Perfil Responsable SST: ${val('in-perfilSST') || '[pendiente]'}
+Perfil Supervisores: ${val('in-perfilSupervisores') || '[pendiente]'}
+Perfil COPASST: ${val('in-perfilCopasst') || '[pendiente]'}
+Coordinación de recursos: ${val('in-recursos') || '[pendiente]'}
+
+FASE 3 — DIRECCIÓN
+Estilo de liderazgo: ${val('in-liderazgo') || '[pendiente]'}
+Justificación: ${val('in-liderazgoJust') || '[pendiente]'}
+Plan de incentivos: ${val('in-incentivos') || '[pendiente]'}
+Comunicación bidireccional: ${val('in-comunicacion') || '[pendiente]'}
+
+FASE 4 — CONTROL E INDICADORES (calculados automáticamente sobre la bitácora real)
+N° de accidentes del trimestre: ${nAcc}
+Días de incapacidad totales: ${diasTot}
+Costo directo total: ${cop(costoTot)}
+Horas Hombre Trabajadas: ${document.getElementById('kpiHHT').textContent}
+Índice de Frecuencia (IF): ${document.getElementById('kpiIF').textContent}
+Índice de Severidad (IS): ${document.getElementById('kpiIS').textContent}
+% Capacitaciones ejecutadas/programadas: ${document.getElementById('capResultado').value}
+Protocolo ante nuevo accidente: ${val('in-protocolo') || '[pendiente]'}
+
+RONDA DE PREGUNTAS — RESPUESTA PRACTICADA
+Pregunta: ${document.getElementById('qaQuestion').textContent}
+Respuesta: ${val('in-qaRespuesta') || '[pendiente]'}
+
+REFERENCIAS NORMATIVAS
+Decreto 1072 de 2015 (Decreto Único Reglamentario del Sector Trabajo), capítulo 6.
+Resolución 0312 de 2019, Estándares Mínimos del SG-SST.
+Ley 1562 de 2012, Sistema General de Riesgos Laborales.
+Resolución 2400 de 1979, disposiciones sobre higiene y seguridad industrial.
+Decreto 1477 de 2014, tabla de enfermedades laborales.
+====================================================
+Generado por el Simulador SG-SST · Caribe S.A.S. · Estudiante: ${studentName || '[sin nombre]'}`;
+}
+function refreshExport(){
+  document.getElementById('exportPreview').textContent = buildReport();
+}
+function downloadReport(){
+  if(!ensureStudent()){ pendingAfterName = downloadReport; return; }
+  const text = buildReport();
+  const blob = new Blob([text], {type:'text/plain;charset=utf-8'});
+  const url = URL.createObjectURL(blob);
+  const a = document.createElement('a');
+  a.href = url; a.download = 'Borrador_Informe_SST_Caribe_' + fileSafeName() + '.txt';
+  document.body.appendChild(a); a.click(); document.body.removeChild(a);
+  URL.revokeObjectURL(url);
+}
+function copyReport(){
+  navigator.clipboard.writeText(buildReport()).then(()=>{
+    alert('Borrador copiado al portapapeles.');
+  });
+}
+
+/* ============== GENERADOR DE INFORME PDF ============== */
+function generatePDFReport(){
+  if(!ensureStudent()){ pendingAfterName = generatePDFReport; return; }
+  recalcKPI();
+  const { jsPDF } = window.jspdf;
+  const doc = new jsPDF({unit:'pt', format:'letter'});
+  const pageW = doc.internal.pageSize.getWidth();
+  const marginX = 50;
+  let y = 0;
+  const YELLOW = [244,180,0];
+  const DARK = [20,23,26];
+  const GREY = [90,98,107];
+
+  function footer(){
+    const pages = doc.internal.getNumberOfPages();
+    for(let i=1;i<=pages;i++){
+      doc.setPage(i);
+      doc.setFontSize(8.5); doc.setTextColor(150,150,150);
+      doc.text('Informe SG-SST · Caribe S.A.S. · Estudiante: ' + studentName, marginX, 780);
+      doc.text('Página ' + i + ' / ' + pages, pageW - marginX, 780, {align:'right'});
+    }
+  }
+  function heading(text){
+    if(y > 700){ doc.addPage(); y = 60; }
+    doc.setFillColor(...YELLOW); doc.rect(marginX, y-14, 4, 18, 'F');
+    doc.setFont('helvetica','bold'); doc.setFontSize(13); doc.setTextColor(...DARK);
+    doc.text(text, marginX+12, y);
+    y += 20;
+  }
+  function paragraph(label, text){
+    doc.setFont('helvetica','bold'); doc.setFontSize(9.5); doc.setTextColor(...GREY);
+    doc.text(label, marginX, y); y += 13;
+    doc.setFont('helvetica','normal'); doc.setFontSize(10); doc.setTextColor(30,30,30);
+    const lines = doc.splitTextToSize(text || '[pendiente]', pageW - marginX*2);
+    if(y + lines.length*13 > 760){ doc.addPage(); y = 60; }
+    doc.text(lines, marginX, y);
+    y += lines.length*13 + 10;
+  }
+
+  // ---- PORTADA ----
+  doc.setFillColor(...DARK); doc.rect(0,0,pageW,842,'F');
+  doc.setFillColor(...YELLOW); doc.rect(0, 380, pageW, 6, 'F');
+  // Encabezado institucional
+  doc.setFont('helvetica','bold'); doc.setFontSize(18); doc.setTextColor(...YELLOW);
+  doc.text(INFO.universidad, marginX, 90);
+  doc.setFont('helvetica','normal'); doc.setFontSize(10.5); doc.setTextColor(210,210,210);
+  doc.text('PROGRAMA: ' + INFO.programa, marginX, 120, {maxWidth: pageW-marginX*2});
+  doc.text('MATERIA: ' + INFO.materia, marginX, 140, {maxWidth: pageW-marginX*2});
+  doc.text('DOCENTE: ' + INFO.docente, marginX, 160, {maxWidth: pageW-marginX*2});
+  doc.setFont('helvetica','bold'); doc.setFontSize(11); doc.setTextColor(...YELLOW);
+  doc.text('INFORME ESCRITO · SISTEMA DE GESTIÓN DE SEGURIDAD Y SALUD EN EL TRABAJO', marginX, 300, {maxWidth: pageW-marginX*2});
+  doc.setFontSize(26); doc.setTextColor(255,255,255);
+  doc.text('Reestructuración del SG-SST', marginX, 340);
+  doc.setFontSize(14); doc.setTextColor(220,220,220);
+  doc.text('Logística & Transporte del Caribe S.A.S.', marginX, 365);
+  doc.setFont('helvetica','normal'); doc.setFontSize(10.5); doc.setTextColor(180,180,180);
+  doc.text('120 trabajadores · 14 accidentes registrados en el trimestre analizado', marginX, 405);
+  doc.text('Fecha de elaboración: ' + new Date().toLocaleDateString('es-CO', {year:'numeric', month:'long', day:'numeric'}), marginX, 425);
+  doc.setFont('helvetica','bold'); doc.setFontSize(10); doc.setTextColor(...YELLOW);
+  doc.text('ELABORADO POR:', marginX, 640);
+  doc.setFontSize(16); doc.setTextColor(255,255,255);
+  doc.text('Ingeniero ' + studentName, marginX, 662, {maxWidth: pageW-marginX*2});
+  doc.setFont('helvetica','normal'); doc.setFontSize(9); doc.setTextColor(140,140,140);
+  doc.text('Equipo consultor SG-SST — Simulador de Reestructuración', marginX, 700);
+  doc.text('Basado en el Decreto 1072 de 2015, Resolución 0312 de 2019, Ley 1562 de 2012, GTC 45.', marginX, 715);
+
+  doc.addPage();
+  y = 60;
+
+  // ---- DIAGNÓSTICO ----
+  heading('1. Diagnóstico');
+  paragraph('Causa raíz administrativa identificada por el equipo:', val('in-diagRaiz'));
+  paragraph('Fallas identificadas en la empresa:',
+    'Sin metas de prevención ni presupuesto para EPP o mantenimiento. Nadie sabe a quién reportar actos o condiciones inseguras. COPASST inactivo, sin funciones asignadas. Cultura de "la seguridad estorba" en dirección, supervisión y planta. Cero medición de indicadores, cero acción correctiva.');
+
+  // ---- FASE 1 ----
+  heading('2. Fase 1 — Planeación');
+  paragraph('Visión de SST a 2 años:', val('in-vision'));
+  paragraph('Objetivo estratégico (Alta Dirección):', val('in-objEstrategico'));
+  paragraph('Objetivo táctico (Área de SST):', val('in-objTactico'));
+  paragraph('Objetivo operacional (Planta):', val('in-objOperacional'));
+
+  if(y > 620){ doc.addPage(); y = 60; }
+  doc.setFont('helvetica','bold'); doc.setFontSize(9.5); doc.setTextColor(...GREY);
+  doc.text('Presupuesto estimado (6 meses):', marginX, y); y += 8;
+  doc.autoTable({
+    startY: y, margin:{left:marginX, right:marginX},
+    head:[['Rubro','Descripción','Cant.','Valor unit.','Valor total']],
+    body: presupuestoRows.map(r=>[r.rubro||'—', r.desc||'—', String(r.cant), cop(r.valorUnit), cop(r.cant*r.valorUnit)]),
+    foot:[['','','','TOTAL', cop(presupuestoTotalValue())]],
+    styles:{fontSize:8.5, cellPadding:5}, headStyles:{fillColor:[42,50,60], textColor:255},
+    footStyles:{fillColor:[244,180,0], textColor:20, fontStyle:'bold'}
+  });
+  y = doc.lastAutoTable.finalY + 20;
+
+  if(y > 620){ doc.addPage(); y = 60; }
+  doc.setFont('helvetica','bold'); doc.setFontSize(9.5); doc.setTextColor(...GREY);
+  doc.text('Cronograma de acción (6 meses):', marginX, y); y += 8;
+  doc.autoTable({
+    startY: y, margin:{left:marginX, right:marginX},
+    head:[['Actividad','Responsable','Mes ini.','Mes fin','Fase PHVA']],
+    body: cronogramaRows.map(r=>[r.actividad||'—', r.responsable||'—', String(r.mesIni), String(r.mesFin), r.fase]),
+    styles:{fontSize:8.5, cellPadding:5}, headStyles:{fillColor:[42,50,60], textColor:255}
+  });
+  y = doc.lastAutoTable.finalY + 25;
+
+  // ---- FASE 2 ----
+  heading('3. Fase 2 — Organización');
+  paragraph('Perfil Gerencia General:', val('in-perfilGerencia'));
+  paragraph('Perfil Responsable de SST:', val('in-perfilSST'));
+  paragraph('Perfil Supervisores de Operaciones:', val('in-perfilSupervisores'));
+  paragraph('Perfil COPASST:', val('in-perfilCopasst'));
+  paragraph('Coordinación de recursos:', val('in-recursos'));
+
+  // ---- FASE 3 ----
+  heading('4. Fase 3 — Dirección');
+  paragraph('Estilo de liderazgo seleccionado:', val('in-liderazgo'));
+  paragraph('Justificación:', val('in-liderazgoJust'));
+  paragraph('Plan de motivación e incentivos:', val('in-incentivos'));
+  paragraph('Comunicación bidireccional:', val('in-comunicacion'));
+
+  // ---- FASE 4 ----
+  heading('5. Fase 4 — Control e indicadores');
+  const nAcc = bitacora.length;
+  const diasTot = bitacora.reduce((s,r)=>s+r.dias,0);
+  const costoTot = bitacora.reduce((s,r)=>s+r.costo,0);
+  paragraph('Resumen', `N° de accidentes del trimestre: ${nAcc}   ·   Días de incapacidad totales: ${diasTot}   ·   Costo directo total: ${cop(costoTot)}`);
+
+  if(y > 650){ doc.addPage(); y = 60; }
+  doc.autoTable({
+    startY: y, margin:{left:marginX, right:marginX},
+    head:[['Indicador','Valor']],
+    body:[
+      ['Horas Hombre Trabajadas (HHT)', document.getElementById('kpiHHT').textContent],
+      ['Índice de Frecuencia (IF)', document.getElementById('kpiIF').textContent],
+      ['Índice de Severidad (IS)', document.getElementById('kpiIS').textContent],
+      ['Prom. días de incapacidad / accidente', document.getElementById('kpiProm').textContent],
+      ['% Capacitaciones ejecutadas / programadas', document.getElementById('capResultado').value]
+    ],
+    styles:{fontSize:9, cellPadding:5}, headStyles:{fillColor:[42,50,60], textColor:255}
+  });
+  y = doc.lastAutoTable.finalY + 20;
+  paragraph('Protocolo de acción inmediata ante un nuevo accidente:', val('in-protocolo'));
+
+  // ---- Bitácora anexa ----
+  if(y > 550){ doc.addPage(); y = 60; }
+  heading('6. Anexo — Bitácora trimestral de accidentes');
+  doc.autoTable({
+    startY: y, margin:{left:marginX, right:marginX},
+    head:[['N°','Tipo de evento','Área','Días inc.','Costo','Causa raíz']],
+    body: bitacora.map(r=>[r.n, r.tipo, r.area, r.dias, cop(r.costo), r.causa]),
+    styles:{fontSize:8, cellPadding:4}, headStyles:{fillColor:[42,50,60], textColor:255}
+  });
+  y = doc.lastAutoTable.finalY + 25;
+
+  // ---- Preguntas Junta ----
+  if(y > 680){ doc.addPage(); y = 60; }
+  heading('7. Ronda de preguntas de la Junta Directiva');
+  paragraph('Pregunta practicada:', document.getElementById('qaQuestion').textContent);
+  paragraph('Respuesta:', val('in-qaRespuesta'));
+
+  // ---- Referencias ----
+  if(y > 650){ doc.addPage(); y = 60; }
+  heading('8. Referencias normativas (APA 7)');
+  const refs = [
+    'Ministerio del Trabajo. (2015). Decreto 1072 de 2015, Decreto Único Reglamentario del Sector Trabajo, Capítulo 6.',
+    'Ministerio del Trabajo. (2019). Resolución 0312 de 2019, por la cual se definen los Estándares Mínimos del Sistema de Gestión de SST.',
+    'Congreso de Colombia. (2012). Ley 1562 de 2012, por la cual se modifica el Sistema de Riesgos Laborales.',
+    'Ministerio de Trabajo y Seguridad Social. (1979). Resolución 2400 de 1979, disposiciones sobre vivienda, higiene y seguridad industrial.',
+    'Ministerio del Trabajo. (2014). Decreto 1477 de 2014, Tabla de Enfermedades Laborales.',
+    'ICONTEC. Guía Técnica Colombiana GTC 45, Guía para la identificación de peligros y valoración de riesgos.'
+  ];
+  doc.setFont('helvetica','normal'); doc.setFontSize(9.5); doc.setTextColor(30,30,30);
+  refs.forEach(r=>{
+    const lines = doc.splitTextToSize(r, pageW - marginX*2);
+    if(y + lines.length*13 > 760){ doc.addPage(); y = 60; }
+    doc.text(lines, marginX, y); y += lines.length*13 + 6;
+  });
+
+  footer();
+  doc.setProperties({title:'Informe SG-SST - ' + studentName, author:studentName, subject:INFO.materia});
+  doc.save('Informe_SG-SST_Caribe_' + fileSafeName() + '.pdf');
+}
+
+/* ============== GENERADOR DE DASHBOARD HTML ============== */
+function generateDashboardHTML(){
+  if(!ensureStudent()){ pendingAfterName = generateDashboardHTML; return; }
+  recalcKPI();
+  const stuH = escHtml(studentName);
+  const nAcc = bitacora.length;
+  const diasTot = bitacora.reduce((s,r)=>s+r.dias,0);
+  const costoTot = bitacora.reduce((s,r)=>s+r.costo,0);
+  const byCausa = {}; const byArea = {};
+  bitacora.forEach(r=>{ byCausa[r.causa]=(byCausa[r.causa]||0)+1; byArea[r.area]=(byArea[r.area]||0)+1; });
+  const mkBars = (obj) => Object.entries(obj).sort((a,b)=>b[1]-a[1]).map(([k,v])=>{
+    const pct = (v/nAcc*100);
+    return `<div class="bar-row"><div class="label">${k}</div><div class="bar-track"><div class="bar-fill" style="width:${pct}%"></div></div><div class="pct">${pct.toFixed(0)}%</div></div>`;
+  }).join('');
+
+  const html = `<!DOCTYPE html>
+<html lang="es"><head><meta charset="UTF-8">
+<title>Dashboard SG-SST · Caribe S.A.S. · ${stuH}</title>
+<link href="https://fonts.googleapis.com/css2?family=Oswald:wght@600;700&family=Inter:wght@400;500;600;700&family=JetBrains+Mono:wght@500;700&display=swap" rel="stylesheet">
+<style>
+:root{--bg:#14171a;--panel:#1c2127;--panel-2:#232a32;--panel-3:#2a323c;--border:#333c46;--yellow:#f4b400;--orange:#e2601b;--blue:#5c8ac7;--red:#c1272d;--green:#4e9f3d;--text:#eceae4;--text-dim:#9aa3ac;--text-faint:#69727b;}
+*{box-sizing:border-box;}
+body{margin:0;background:var(--bg);color:var(--text);font-family:'Inter',sans-serif;padding:34px;}
+h1,h2,h3{font-family:'Oswald',sans-serif;text-transform:uppercase;letter-spacing:.03em;margin:0;}
+.mono{font-family:'JetBrains Mono',monospace;}
+.hdr{border-bottom:4px solid var(--yellow);padding-bottom:16px;margin-bottom:24px;}
+.hdr h1{font-size:26px;color:var(--text);}
+.hdr .sub{color:var(--text-dim);font-size:13px;margin-top:6px;}
+.grid{display:grid;grid-template-columns:repeat(4,1fr);gap:16px;margin-bottom:24px;}
+.grid3{display:grid;grid-template-columns:1fr 1fr;gap:16px;margin-bottom:24px;}
+@media(max-width:800px){.grid{grid-template-columns:repeat(2,1fr);}.grid3{grid-template-columns:1fr;}}
+.stat{background:var(--panel);border:1px solid var(--border);border-radius:8px;padding:16px;}
+.stat .k{font-size:10.5px;color:var(--text-faint);text-transform:uppercase;letter-spacing:.08em;}
+.stat .v{font-family:'JetBrains Mono',monospace;font-size:28px;color:var(--yellow);margin-top:6px;}
+.stat .v.red{color:var(--red);}
+.card{background:var(--panel);border:1px solid var(--border);border-radius:8px;padding:20px;}
+.card h3{font-size:14px;color:var(--yellow);margin-bottom:14px;}
+.bar-row{display:flex;align-items:center;gap:10px;margin-bottom:10px;}
+.bar-row .label{width:190px;font-size:12px;color:var(--text-dim);flex-shrink:0;}
+.bar-track{flex:1;background:var(--panel-2);border-radius:4px;height:16px;overflow:hidden;border:1px solid var(--border);}
+.bar-fill{height:100%;background:linear-gradient(90deg,var(--orange),var(--yellow));}
+.bar-row .pct{width:44px;text-align:right;font-family:'JetBrains Mono',monospace;font-size:12px;color:var(--yellow);}
+.obj{background:var(--panel-2);border-left:3px solid var(--yellow);border-radius:0 6px 6px 0;padding:12px 14px;margin-bottom:10px;font-size:13px;line-height:1.6;}
+.obj b{color:var(--yellow);display:block;font-size:10.5px;text-transform:uppercase;letter-spacing:.08em;margin-bottom:4px;}
+.footer{margin-top:24px;color:var(--text-faint);font-size:11px;text-align:center;}
+</style></head>
+<body>
+<div class="hdr">
+  <h1>Dashboard SG-SST · Reestructuración</h1>
+  <div class="sub">Logística &amp; Transporte del Caribe S.A.S. — 120 trabajadores · 14 accidentes en el último trimestre</div>
+  <div class="sub" style="margin-top:10px;color:var(--yellow);font-weight:700;">${INFO.universidad} · ${INFO.programa}</div>
+  <div class="sub">Materia: ${INFO.materia} · Docente: ${INFO.docente}</div>
+  <div class="sub" style="color:var(--text);font-weight:600;">Estudiante: Ingeniero ${stuH}</div>
+</div>
+
+<div class="grid">
+  <div class="stat"><div class="k">Accidentes / trimestre</div><div class="v red">${nAcc}</div></div>
+  <div class="stat"><div class="k">Días de incapacidad</div><div class="v red">${diasTot}</div></div>
+  <div class="stat"><div class="k">Costo directo total</div><div class="v">${cop(costoTot)}</div></div>
+  <div class="stat"><div class="k">Presupuesto propuesto</div><div class="v" style="color:var(--green)">${cop(presupuestoTotalValue())}</div></div>
+</div>
+
+<div class="grid">
+  <div class="stat"><div class="k">Horas Hombre Trabajadas</div><div class="v">${document.getElementById('kpiHHT').textContent}</div></div>
+  <div class="stat"><div class="k">Índice de Frecuencia (IF)</div><div class="v">${document.getElementById('kpiIF').textContent}</div></div>
+  <div class="stat"><div class="k">Índice de Severidad (IS)</div><div class="v">${document.getElementById('kpiIS').textContent}</div></div>
+  <div class="stat"><div class="k">% Capacitaciones ejec./prog.</div><div class="v">${document.getElementById('capResultado').value}</div></div>
+</div>
+
+<div class="grid3">
+  <div class="card"><h3>Accidentes por causa raíz (Pareto)</h3>${mkBars(byCausa)}</div>
+  <div class="card"><h3>Accidentes por área</h3>${mkBars(byArea)}</div>
+</div>
+
+<div class="grid3">
+  <div class="card">
+    <h3>Objetivos (alineación vertical)</h3>
+    <div class="obj"><b>Estratégico</b>${val('in-objEstrategico') || '[pendiente]'}</div>
+    <div class="obj"><b>Táctico</b>${val('in-objTactico') || '[pendiente]'}</div>
+    <div class="obj"><b>Operacional</b>${val('in-objOperacional') || '[pendiente]'}</div>
+  </div>
+  <div class="card">
+    <h3>Liderazgo, dirección y protocolo</h3>
+    <div class="obj"><b>Estilo de liderazgo</b>${val('in-liderazgo') || '[pendiente]'}</div>
+    <div class="obj"><b>Protocolo ante nuevo accidente</b>${val('in-protocolo') || '[pendiente]'}</div>
+  </div>
+</div>
+
+<div class="footer">Dashboard generado por el Simulador SG-SST · Caribe S.A.S. — Estudiante: ${stuH} — ${new Date().toLocaleDateString('es-CO')}</div>
+</body></html>`;
+
+  const blob = new Blob([html], {type:'text/html;charset=utf-8'});
+  const url = URL.createObjectURL(blob);
+  const a = document.createElement('a');
+  a.href = url; a.download = 'Dashboard_SST_Caribe_' + fileSafeName() + '.html';
+  document.body.appendChild(a); a.click(); document.body.removeChild(a);
+  URL.revokeObjectURL(url);
+}
+
+/* ============== EXCEL: CRONOGRAMA ============== */
+function exportCronogramaXLSX(){
+  if(!ensureStudent()){ pendingAfterName = exportCronogramaXLSX; return; }
+  const header = ['N°','Actividad','Responsable','Mes inicio','Mes fin','Fase PHVA','M1','M2','M3','M4','M5','M6'];
+  const rows = cronogramaRows.map((r,i)=>{
+    const meses = [1,2,3,4,5,6].map(m => (m>=r.mesIni && m<=r.mesFin) ? 'X' : '');
+    return [i+1, r.actividad, r.responsable, r.mesIni, r.mesFin, r.fase, ...meses];
+  });
+  const wsData = [
+    ['CRONOGRAMA DE ACCIÓN — SG-SST · Logística & Transporte del Caribe S.A.S.'],
+    ['Periodo: 6 meses'],
+    ['Estudiante: Ingeniero ' + studentName + ' · ' + INFO.materia + ' · Docente: ' + INFO.docente],
+    [INFO.universidad + ' · ' + INFO.programa],
+    [],
+    header,
+    ...rows
+  ];
+  const ws = XLSX.utils.aoa_to_sheet(wsData);
+  ws['!cols'] = [{wch:4},{wch:42},{wch:26},{wch:10},{wch:10},{wch:12},{wch:4},{wch:4},{wch:4},{wch:4},{wch:4},{wch:4}];
+  ws['!merges'] = [{s:{r:0,c:0},e:{r:0,c:11}},{s:{r:1,c:0},e:{r:1,c:11}},{s:{r:2,c:0},e:{r:2,c:11}},{s:{r:3,c:0},e:{r:3,c:11}}];
+  const wb = XLSX.utils.book_new();
+  XLSX.utils.book_append_sheet(wb, ws, 'Cronograma');
+  XLSX.writeFile(wb, 'Cronograma_SST_Caribe_' + fileSafeName() + '.xlsx');
+}
+
+/* ============== EXCEL: PRESUPUESTO ============== */
+function exportPresupuestoXLSX(){
+  if(!ensureStudent()){ pendingAfterName = exportPresupuestoXLSX; return; }
+  const costoAccidentes = bitacora.reduce((s,r)=>s+r.costo,0);
+  const header = ['N°','Rubro','Descripción','Cantidad','Valor unitario (COP)','Valor total (COP)'];
+  const rows = presupuestoRows.map((r,i)=>[i+1, r.rubro, r.desc, r.cant, r.valorUnit, r.cant*r.valorUnit]);
+  const total = presupuestoTotalValue();
+  const wsData = [
+    ['PRESUPUESTO ESTIMADO (6 MESES) — SG-SST · Logística & Transporte del Caribe S.A.S.'],
+    ['Estudiante: Ingeniero ' + studentName + ' · ' + INFO.materia + ' · Docente: ' + INFO.docente],
+    [INFO.universidad + ' · ' + INFO.programa],
+    [],
+    header,
+    ...rows,
+    [],
+    ['', '', '', '', 'TOTAL PRESUPUESTO', total],
+    ['', '', '', '', 'Costo ya causado por los 14 accidentes', costoAccidentes],
+    ['', '', '', '', 'Diferencia (ahorro potencial preventivo)', costoAccidentes-total]
+  ];
+  const ws = XLSX.utils.aoa_to_sheet(wsData);
+  ws['!cols'] = [{wch:4},{wch:30},{wch:42},{wch:10},{wch:18},{wch:18}];
+  ws['!merges'] = [{s:{r:0,c:0},e:{r:0,c:5}},{s:{r:1,c:0},e:{r:1,c:5}},{s:{r:2,c:0},e:{r:2,c:5}}];
+  const wb = XLSX.utils.book_new();
+  XLSX.utils.book_append_sheet(wb, ws, 'Presupuesto');
+  XLSX.writeFile(wb, 'Presupuesto_SST_Caribe_' + fileSafeName() + '.xlsx');
+}
+
+/* ============== THREE.JS: hero warehouse scene ============== */
+function initHero(){
+  const canvas = document.getElementById('hero3d');
+  const w = canvas.clientWidth, h = canvas.clientHeight;
+  const renderer = new THREE.WebGLRenderer({canvas, antialias:true, alpha:true});
+  renderer.setSize(w,h,false);
+  renderer.setPixelRatio(Math.min(window.devicePixelRatio,2));
+
+  const scene = new THREE.Scene();
+  scene.fog = new THREE.Fog(0x0f1215, 10, 34);
+  const camera = new THREE.PerspectiveCamera(42, w/h, 0.1, 100);
+  camera.position.set(6, 5, 11);
+  camera.lookAt(0,1,0);
+
+  scene.add(new THREE.AmbientLight(0x8899aa, 0.8));
+  const dir = new THREE.DirectionalLight(0xfff2cc, 1.1);
+  dir.position.set(5,8,4);
+  scene.add(dir);
+  const rim = new THREE.PointLight(0xe2601b, 0.6, 20);
+  rim.position.set(-6,3,-4);
+  scene.add(rim);
+
+  // floor with hazard stripe pattern via canvas texture
+  const c = document.createElement('canvas'); c.width=256; c.height=256;
+  const ctx = c.getContext('2d');
+  ctx.fillStyle = '#2a2e33'; ctx.fillRect(0,0,256,256);
+  ctx.strokeStyle = 'rgba(244,180,0,0.5)'; ctx.lineWidth = 10;
+  for(let i=-256;i<256;i+=32){ ctx.beginPath(); ctx.moveTo(i,256); ctx.lineTo(i+256,0); ctx.stroke(); }
+  const floorTex = new THREE.CanvasTexture(c);
+  floorTex.wrapS = floorTex.wrapT = THREE.RepeatWrapping;
+  floorTex.repeat.set(4,4);
+  const floor = new THREE.Mesh(new THREE.PlaneGeometry(40,40), new THREE.MeshStandardMaterial({map:floorTex, roughness:0.95}));
+  floor.rotation.x = -Math.PI/2;
+  scene.add(floor);
+
+  // shelving rack with boxes
+  const rackMat = new THREE.MeshStandardMaterial({color:0x4a5158, metalness:0.4, roughness:0.6});
+  const boxColors = [0xe2601b, 0x5c8ac7, 0xf4b400, 0x8a6b12];
+  function makeRack(x,z){
+    const group = new THREE.Group();
+    for(let lvl=0; lvl<3; lvl++){
+      const shelf = new THREE.Mesh(new THREE.BoxGeometry(4,0.1,1.2), rackMat);
+      shelf.position.set(0, 0.8+lvl*1.3, 0);
+      group.add(shelf);
+      for(let i=0;i<3;i++){
+        const box = new THREE.Mesh(new THREE.BoxGeometry(0.9,0.8,0.9), new THREE.MeshStandardMaterial({color:boxColors[(lvl+i)%boxColors.length], roughness:0.8}));
+        box.position.set(-1.3+i*1.3, 0.8+lvl*1.3+0.45, 0);
+        group.add(box);
+      }
+    }
+    [[-2,0.65,-0.6],[2,0.65,-0.6],[-2,0.65,0.6],[2,0.65,0.6]].forEach(p=>{
+      const post = new THREE.Mesh(new THREE.BoxGeometry(0.12,4,0.12), rackMat);
+      post.position.set(p[0], 2, p[2]);
+      group.add(post);
+    });
+    group.position.set(x,0,z);
+    return group;
+  }
+  scene.add(makeRack(-4.5, -4));
+  scene.add(makeRack(4.5, -4));
+
+  // forklift
+  const forklift = new THREE.Group();
+  const bodyMat = new THREE.MeshStandardMaterial({color:0xf4b400, roughness:0.5, metalness:0.3});
+  const body = new THREE.Mesh(new THREE.BoxGeometry(1.6,0.9,1.1), bodyMat);
+  body.position.y = 0.75;
+  forklift.add(body);
+  const cabin = new THREE.Mesh(new THREE.BoxGeometry(0.9,0.7,1.0), new THREE.MeshStandardMaterial({color:0x2a2e33}));
+  cabin.position.set(-0.2,1.5,0);
+  forklift.add(cabin);
+  const mast = new THREE.Mesh(new THREE.BoxGeometry(0.12,2.2,0.9), new THREE.MeshStandardMaterial({color:0x333c46}));
+  mast.position.set(0.85,1.3,0);
+  forklift.add(mast);
+  const forkGroup = new THREE.Group();
+  [-0.3,0.3].forEach(zOff=>{
+    const fork = new THREE.Mesh(new THREE.BoxGeometry(0.9,0.08,0.18), new THREE.MeshStandardMaterial({color:0x9aa3ac, metalness:0.7}));
+    fork.position.set(1.35, 0.5, zOff);
+    forkGroup.add(fork);
+  });
+  const pallet = new THREE.Mesh(new THREE.BoxGeometry(0.7,0.55,0.75), new THREE.MeshStandardMaterial({color:0xe2601b}));
+  pallet.position.set(1.7,0.75,0);
+  forkGroup.add(pallet);
+  forklift.add(forkGroup);
+  [[0.6,0.35,0.55],[0.6,0.35,-0.55],[-0.6,0.35,0.55],[-0.6,0.35,-0.55]].forEach(p=>{
+    const wheel = new THREE.Mesh(new THREE.CylinderGeometry(0.32,0.32,0.28,16), new THREE.MeshStandardMaterial({color:0x111417}));
+    wheel.rotation.z = Math.PI/2;
+    wheel.position.set(p[0],p[1],p[2]);
+    forklift.add(wheel);
+  });
+  forklift.position.set(-2,0,3);
+  scene.add(forklift);
+
+  // floating hazard warning sign
+  const warnGroup = new THREE.Group();
+  const ring = new THREE.Mesh(new THREE.TorusGeometry(0.5,0.07,12,32), new THREE.MeshStandardMaterial({color:0xc1272d, emissive:0x330000}));
+  warnGroup.add(ring);
+  const bang = new THREE.Mesh(new THREE.ConeGeometry(0.12,0.5,8), new THREE.MeshStandardMaterial({color:0xf4b400}));
+  bang.position.y = 0.05;
+  warnGroup.add(bang);
+  const dotMesh = new THREE.Mesh(new THREE.SphereGeometry(0.07,8,8), new THREE.MeshStandardMaterial({color:0xf4b400}));
+  dotMesh.position.y = -0.35;
+  warnGroup.add(dotMesh);
+  warnGroup.position.set(3.2, 3, 1);
+  scene.add(warnGroup);
+
+  let t = 0;
+  function animate(){
+    requestAnimationFrame(animate);
+    t += 0.012;
+    forklift.position.x = -2 + Math.sin(t)*2.4;
+    forklift.rotation.y = Math.sin(t) > 0 ? 0 : Math.PI;
+    forkGroup.position.y = 0.1 + Math.sin(t*2)*0.05;
+    warnGroup.rotation.y += 0.01;
+    warnGroup.position.y = 3 + Math.sin(t*1.5)*0.15;
+    camera.position.x = 6 + Math.sin(t*0.15)*1.2;
+    camera.lookAt(0,1,0);
+    renderer.render(scene, camera);
+  }
+  animate();
+
+  window.addEventListener('resize', ()=>{
+    const w2 = canvas.clientWidth, h2 = canvas.clientHeight;
+    renderer.setSize(w2,h2,false);
+    camera.aspect = w2/h2;
+    camera.updateProjectionMatrix();
+  });
+}
+
+/* ============== THREE.JS: mini hard-hat mascot ============== */
+function initMini(){
+  const canvas = document.getElementById('mini3d');
+  const w = canvas.clientWidth || 200, h = canvas.clientHeight || 110;
+  const renderer = new THREE.WebGLRenderer({canvas, antialias:true, alpha:true});
+  renderer.setSize(w,h,false);
+  renderer.setPixelRatio(Math.min(window.devicePixelRatio,2));
+  const scene = new THREE.Scene();
+  const camera = new THREE.PerspectiveCamera(38, w/h, 0.1, 20);
+  camera.position.set(0,0.6,3.2);
+  camera.lookAt(0,0,0);
+  scene.add(new THREE.AmbientLight(0xffffff,0.9));
+  const dl = new THREE.DirectionalLight(0xfff2cc,1);
+  dl.position.set(2,3,2);
+  scene.add(dl);
+
+  const hatGroup = new THREE.Group();
+  const dome = new THREE.Mesh(
+    new THREE.SphereGeometry(1,24,16,0,Math.PI*2,0,Math.PI/1.9),
+    new THREE.MeshStandardMaterial({color:0xf4b400, roughness:0.5})
+  );
+  hatGroup.add(dome);
+  const brim = new THREE.Mesh(
+    new THREE.CylinderGeometry(1.08,1.08,0.09,32),
+    new THREE.MeshStandardMaterial({color:0xd99a00, roughness:0.5})
+  );
+  brim.position.y = -0.02;
+  hatGroup.add(brim);
+  const stripe = new THREE.Mesh(
+    new THREE.TorusGeometry(1.0,0.04,8,32,Math.PI),
+    new THREE.MeshStandardMaterial({color:0x14171a})
+  );
+  stripe.position.y = 0.15;
+  stripe.rotation.x = Math.PI/2;
+  hatGroup.add(stripe);
+  hatGroup.scale.set(0.85,0.85,0.85);
+  scene.add(hatGroup);
+
+  let t=0;
+  function animate(){
+    requestAnimationFrame(animate);
+    t += 0.012;
+    hatGroup.rotation.y = t;
+    hatGroup.position.y = Math.sin(t*1.4)*0.08;
+    renderer.render(scene,camera);
+  }
+  animate();
+}
+
+/* ============== INIT ============== */
+renderLogbook();
+renderPresupuesto();
+renderCronograma();
+recalcKPI();
+recalcCapacitaciones();
+renderTimer();
+try{ initHero(); }catch(e){ console.warn('3D hero no disponible', e); }
+try{ initMini(); }catch(e){ console.warn('3D mini no disponible', e); }
+</script>
+</body>
+</html>
